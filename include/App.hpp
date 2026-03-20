@@ -2,6 +2,8 @@
 #define APP_HPP
 
 #include "pch.hpp" // IWYU pragma: export
+#include "Util/Renderer.hpp"
+#include "Map.hpp"
 
 class App {
 public:
@@ -21,6 +23,8 @@ public:
 
 private:
     void ValidTask();
+    Util::Renderer m_Renderer;
+    Map m_Map;
 
 private:
     State m_CurrentState = State::START;
