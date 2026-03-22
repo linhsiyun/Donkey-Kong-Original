@@ -23,6 +23,8 @@ public:
 
     [[nodiscard]] const glm::vec2& GetPosition() const { return m_Transform.translation; }
 
+    [[nodiscard]] const glm::vec2& GetScale() const { return m_Transform.scale; }
+
     [[nodiscard]] bool GetVisibility() const { return m_Visible; }
 
     void SetImage(const std::string& ImagePath);
