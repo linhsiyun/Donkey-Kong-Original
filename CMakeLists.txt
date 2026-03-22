@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(REPLACE_WITH_YOUR_PROJECT_NAME)
+project(Donkey_Kong)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -11,25 +11,26 @@ set(FETCHCONTENT_QUIET FALSE)
 FetchContent_Declare(
     ptsd
 
-    URL         https://github.com/ntut-open-source-club/practical-tools-for-simple-design/archive/refs/tags/v0.2.zip
+    # URL         https://github.com/ntut-open-source-club/practical-tools-for-simple-design/archive/refs/tags/v0.2.zip
 
     # Or alternatively if you want to use a specific git commit instead of a release:
-    # GIT_REPOSITORY  https://github.com/ntut-open-source-club/practical-tools-for-simple-design.git
-    # GIT_TAG         <git_tag>
+    GIT_REPOSITORY  https://github.com/ntut-open-source-club/practical-tools-for-simple-design.git
+    GIT_TAG         main # Use the main branch for the latest updates
 
     SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/PTSD
 )
 
 FetchContent_MakeAvailable(ptsd)
 
-include(files.cmake)
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
-list(TRANSFORM SRC_FILES PREPEND ${SRC_DIR}/)
-list(TRANSFORM INCLUDE_FILES PREPEND ${INCLUDE_DIR}/)
 
-# file(GLOB_RECURSE SRC_FILES src/*)
-# file(GLOB_RECURSE HEADER_FILES include/*)
+# include(files.cmake)
+# list(TRANSFORM SRC_FILES PREPEND ${SRC_DIR}/)
+# list(TRANSFORM INCLUDE_FILES PREPEND ${INCLUDE_DIR}/)
+
+file(GLOB_RECURSE SRC_FILES src/*.cpp)
+file(GLOB_RECURSE HEADER_FILES include/*.hpp)
 
 add_executable(${PROJECT_NAME}
     ${SRC_DIR}/main.cpp

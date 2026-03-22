@@ -15,10 +15,21 @@ This is a [PTSD](https://github.com/ntut-open-source-club/practical-tools-for-si
 
 3. Build your project
 
-  > [!WARNING]
-  > Please build your project in `Debug` because our `Release` path is broken D:
-   
-   ```sh
-   cmake -DCMAKE_BUILD_TYPE=Debug -B build # -G Ninja
-   ```
+   > [!WARNING]
+   > Please build your project in `Debug` because our `Release` path is broken D:
+
+    ```sh
+    cmake -DCMAKE_BUILD_TYPE=Debug -B build # -G Ninja
+    ```
+
+   > Compiles and links the souce code to create executables
+    ```sh
+    cmake --build build
+    ```
+
+   > or clean the previous build artifacts before compiling again:
+    ```sh
+    cmake --build build --clean-first
+    ```
+
    better read [PTSD README](https://github.com/ntut-open-source-club/practical-tools-for-simple-design)

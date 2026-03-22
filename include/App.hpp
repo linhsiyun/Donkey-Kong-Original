@@ -4,6 +4,12 @@
 #include "pch.hpp" // IWYU pragma: export
 #include "Util/Renderer.hpp"
 
+#include "Util/Renderer.hpp"
+#include "Character.hpp"
+//not used, #include "Util/Text.hpp"
+//not used, #include "PhaseResourceManger.hpp"
+//not used, #include "AnimatedCharacter.hpp"
+
 class App {
 public:
     enum class State {
@@ -26,6 +32,15 @@ private:
 
 private:
     State m_CurrentState = State::START;
+    //not used, Phase m_Phase = Phase::CHANGE_CHARACTER_IMAGE;
+
+    Util::Renderer m_Root;
+
+    std::shared_ptr<Character> m_Mario;
+    std::shared_ptr<Character> m_Mario1;
+    std::shared_ptr<Character> m_Mario2;
+
+    int marioState = 0;
 };
 
 #endif

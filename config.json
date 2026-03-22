@@ -1,0 +1,9 @@
+{
+  "title": "Donkey Kong Game",
+  "window_width": 800,
+  "window_height": 600,
+  "window_pos_x": 100,
+  "window_pos_y": 100,
+  "fps_cap": 60,
+  "default_log_level": 3
+}
