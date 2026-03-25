@@ -14,7 +14,7 @@ void App::Start() {
     m_Mario->SetZIndex(50);
     m_Mario->SetScale({2.5f, 2.5f});
     m_Mario->SetVisible(true);
-    m_Root.AddChild(m_Mario);
+    m_Renderer.AddChild(m_Mario);
 
     // 初始化 Mario 行走動畫 (AnimatedCharacter)
     std::vector<std::string> marioWalkImages;
@@ -25,7 +25,7 @@ void App::Start() {
     m_MarioWalk = std::make_shared<AnimatedCharacter>(marioWalkImages);
     m_MarioWalk->SetZIndex(50);
     m_MarioWalk->SetVisible(false);
-    m_Root.AddChild(m_MarioWalk);
+    m_Renderer.AddChild(m_MarioWalk);
 
     // 初始化 Mario 攀爬動畫 (AnimatedCharacter)
     std::vector<std::string> marioClimbImages;
@@ -37,7 +37,7 @@ void App::Start() {
     m_MarioClimb->SetZIndex(50);
     m_MarioClimb->SetVisible(false);
     m_MarioClimb->SetScale({2.5f, 2.5f});
-    m_Root.AddChild(m_MarioClimb);
+    m_Renderer.AddChild(m_MarioClimb);
 
     // 初始化 Mario 跳躍狀態 (Character) - 這裡使用靜態圖片
     m_MarioJump = std::make_shared<Character>(RESOURCE_DIR"/Images/Jump.png");
@@ -45,7 +45,9 @@ void App::Start() {
     m_MarioJump->SetZIndex(50);
     m_MarioJump->SetVisible(false);
     m_MarioJump->SetScale({2.5f, 2.5f});
-    m_Root.AddChild(m_MarioJump);
+    m_Renderer.AddChild(m_MarioJump);
+
+    // TODO: 初始化 m_MarioFall, m_MarioHammer, m_MarioDead, m_MarioWin
 
     // 初始化跳躍狀態，確保一開始不會誤動作
     m_IsJumping = false;
@@ -56,11 +58,12 @@ void App::Start() {
 
 void App::Update() {
 
-    auto marioPosition = m_Mario->GetPosition();
     const float movingStep = 2.0F;  // 走路與跳躍速度
     const float climbingStep = 1.0F; // 攀爬速度
 
-    // TODO: MarioState::HAMMERING, MarioState::FALLING
+    marioPosition = m_Mario->GetPosition();
+
+    // TODO: MarioState::FALLING, MarioState::HAMMERING, MarioState::DEAD, MarioState::WIN
 
     // 1. 偵測跳躍觸發
     // 條件：不在跳躍中 且 沒按下攀爬(狀態非3或4) 且 按下空白鍵
@@ -108,6 +111,7 @@ void App::Update() {
             float progress = m_JumpTimer / totalJumpTime;
             float yOffset = 4.0f * jumpHeight * progress * (1.0f - progress);
             marioPosition.y = m_JumpStartPosition.y + yOffset;
+            marioPosition.y += yOffset;
 
             // 水平移動與面向設定
             if (m_JumpDirection != 0) {
@@ -204,47 +208,13 @@ void App::Update() {
         }
     }
 
-    m_Mario->SetPosition(marioPosition);    // 每次 App::Update都是從m_Mario拿到Mario's position, m_Marioi一定要每次都更新position
+    // 4. 顯示邏輯：根據目前的 marioState 決定顯示哪個物件 
+    ShowMario();
 
-    // 4. 顯示邏輯：根據目前的 marioState 決定顯示哪個物件 (Mario, Walk, Climb, Jump)
-    // 攀爬中
-    if ((marioState == MarioState::CLIMBING) || (marioState == MarioState::CLIMB_IDLE)) {
-        m_Mario->SetVisible(false);
-        m_MarioWalk->SetVisible(false);
-        m_MarioJump->SetVisible(false);
-
-        m_MarioClimb->SetPosition(marioPosition);
-        m_MarioClimb->SetVisible(true);
-    }
-    // 跳躍中
-    else if (marioState == MarioState::JUMPING) {
-        m_Mario->SetVisible(false);
-        m_MarioClimb->SetVisible(false);
-        m_MarioWalk->SetVisible(false);
-
-        m_MarioJump->SetPosition(marioPosition);
-        m_MarioJump->SetVisible(true);
-    }
-    // 行走中
-    else if (marioState == MarioState::WALKING){
-        m_MarioWalk->SetPosition(marioPosition);
-        m_Mario->SetVisible(false);
-        m_MarioWalk->SetVisible(true);
-        m_MarioClimb->SetVisible(false);
-        m_MarioJump->SetVisible(false);
-    }
-    // 靜止 (IDLE) 或其他狀態
-    else {
-        m_MarioWalk->SetVisible(false);
-        m_MarioClimb->SetVisible(false);
-        m_MarioJump->SetVisible(false);
-
-        m_Mario->SetVisible(true);
-    }
 
     // 在 PTSD 框架中，m_Root 是場景的根節點 (Renderer)，必須在每一幀 (Frame) 都呼叫 Update()，
     // 它才會去繪製所有加入其中的角色 (如 Mario)。
-    m_Root.Update();
+    m_Renderer.Update();
 
 
     /*
@@ -254,6 +224,57 @@ void App::Update() {
     if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) ||
         Util::Input::IfExit()) {
         m_CurrentState = State::END;
+    }
+}
+
+// 根據目前的 marioState 決定顯示哪個物件 
+void App::ShowMario(void) {
+    if(marioState != MarioState::IDLE)    
+        m_Mario->SetVisible(false);         
+    if(marioState != MarioState::WALKING)
+        m_MarioWalk->SetVisible(false);
+    if((marioState != MarioState::CLIMB_IDLE) && (marioState != MarioState::CLIMBING))
+        m_MarioClimb->SetVisible(false);
+    if(marioState != MarioState::JUMPING)    
+        m_MarioJump->SetVisible(false);
+    //TODO: m_MarioFall, m_MarioHammer, m_MarioDead, m_MarioWin
+   
+    // 更新 Mario position
+    // 每次 App::Update都是從m_Mario拿到Mario's position, m_Marioi一定要每次都更新position
+    m_Mario->SetPosition(marioPosition); 
+
+    switch (marioState) {
+        case MarioState::IDLE:
+            m_Mario->SetVisible(true);
+            break;  
+        case MarioState::WALKING:
+            m_MarioWalk->SetPosition(marioPosition);
+            m_MarioWalk->SetVisible(true);
+            break;
+        case MarioState::CLIMBING:
+        case MarioState::CLIMB_IDLE:
+            m_MarioClimb->SetPosition(marioPosition);
+            m_MarioClimb->SetVisible(true);
+            break;
+        case MarioState::JUMPING:
+            m_MarioJump->SetPosition(marioPosition);
+            m_MarioJump->SetVisible(true);
+            break;
+        case MarioState::FALLING:
+            //TODO
+            break;
+        case MarioState::HAMMERING:
+        case MarioState::HAMMER_IDLE:        
+            //TODO
+            break;
+        case MarioState::DEAD:
+            //TODO
+            break;
+        case MarioState::WIN:
+            //TODO
+            break;
+        default:
+            break;
     }
 }
 

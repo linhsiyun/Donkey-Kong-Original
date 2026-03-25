@@ -52,26 +52,26 @@ private:
 
 private:
     State m_CurrentState = State::START;
-    //not used, Phase m_Phase = Phase::CHANGE_CHARACTER_IMAGE;
-
-    Util::Renderer m_Root;
 
     std::shared_ptr<Character> m_Mario;
-
     std::shared_ptr<AnimatedCharacter> m_MarioWalk;
     std::shared_ptr<AnimatedCharacter> m_MarioClimb;
-
-    //std::shared_ptr<Character> m_MarioClimb1;
-    //std::shared_ptr<Character> m_MarioClimb2;
     std::shared_ptr<Character> m_MarioJump;
+    std::shared_ptr<Character> m_MarioFall;     
+    std::shared_ptr<Character> m_MarioHammer;   
+    std::shared_ptr<Character> m_MarioDead;     
+    std::shared_ptr<Character> m_MarioWin;      
 
     bool m_IsJumping = false;
     float m_JumpTimer = 0.0f;
-    glm::vec2 m_JumpStartPosition;
-    int m_JumpDirection = 0; // 0: None, 1: Right, -1: Left
+    glm::vec2 m_JumpStartPosition;  
+    int m_JumpDirection = 0;        // 0: None, 1: Right, -1: Left
 
     MarioState marioState = MarioState::IDLE;
-    MarioDIR marioDir = MarioDIR::NONE;
+    MarioDIR  marioDir = MarioDIR::NONE;
+    glm::vec2 marioPosition;    // 根據目前的 marioState 決定顯示哪個物件 
+
+    void ShowMario(void);
 };
 
 #endif
