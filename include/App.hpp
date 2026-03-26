@@ -5,6 +5,8 @@
 #include "Util/Renderer.hpp"
 #include "Map.hpp"
 
+#include "Util/GameObject.hpp"
+
 class App {
 public:
     enum class State {
@@ -25,6 +27,8 @@ private:
     void ValidTask();
     Util::Renderer m_Renderer;
     std::shared_ptr<Map> m_Map;
+
+    //測試用 std::shared_ptr<Util::GameObject> m_TestMarker;
 
 private:
     State m_CurrentState = State::START;
