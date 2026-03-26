@@ -1,26 +1,28 @@
-//這個 HPP 的用途：將 TXT 檔轉換成實體的 GameObject
+// Map.hpp / .cpp：繼承自你的 Util::GameObject，將圖片與邏輯（LevelData）封裝在一起
 
 #ifndef MAP_HPP
 #define MAP_HPP
 
-#include "pch.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
+#include "LevelData.hpp"
+#include <string>
 
-class Map {
+class Map : public Util::GameObject {
 public:
-    Map() = default;
-    ~Map() = default;
+    // 假設地圖上一格是 32x32 像素 (你可以依照你的真實圖片比例修改)
+    static constexpr float TILE_SIZE = 32.0f;
 
-    // 加上 [[nodiscard]]，強制呼叫者必須接收這包地圖物件
-    [[nodiscard]] std::vector<std::shared_ptr<Util::GameObject>> LoadMap(const std::string& filepath);
+    // 建構子同時接收「圖片路徑」與「TXT路徑」
+    Map(const std::string& imagePath, const std::string& txtPath);
+
+    // 讓未來的碰撞系統、角色可以取得這張地圖的邏輯資料
+    const LevelData& GetLevelData() const { return m_LevelData; }
+
+    // 【新增】給未來角色的 API：輸入角色的 X, Y 像素座標，回傳他踩到什麼格子
+    TileType GetTileAtPosition(float worldX, float worldY) const;
 
 private:
-    std::vector<std::shared_ptr<Util::GameObject>> m_Tiles;
-
-    const int TILE_SIZE = 30;
-    const int MAP_COLS = 37;
-    const int MAP_ROWS = 24;
+    LevelData m_LevelData;
 };
 
 #endif // MAP_HPP

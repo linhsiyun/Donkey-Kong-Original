@@ -24,7 +24,7 @@ public:
 private:
     void ValidTask();
     Util::Renderer m_Renderer;
-    Map m_Map;
+    std::shared_ptr<Map> m_Map;
 
 private:
     State m_CurrentState = State::START;

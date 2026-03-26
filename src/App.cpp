@@ -1,5 +1,5 @@
 #include "App.hpp"
-
+#include "Map.hpp"
 #include "Util/Image.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
@@ -8,11 +8,9 @@
 void App::Start() {
     LOG_TRACE("Start");
 
-    // 1. 載入地圖並取得物件
-    auto mapTiles = m_Map.LoadMap("../Resources/Maps/Map1.txt"); // 請換成你的 txt 路徑
-
-    // 2. 把地圖物件交給 Renderer 管理
-    m_Renderer.AddChildren(mapTiles);
+    // 初始化地圖，並加入到 Renderer 渲染清單中
+    m_Map = std::make_shared<Map>("../Resources/Images/DonkeyKongSprites2.png", "../Resources/Maps/Map1.txt");
+    m_Renderer.AddChild(m_Map);
 
     m_CurrentState = State::UPDATE;
 }
@@ -20,8 +18,7 @@ void App::Start() {
 void App::Update() {
     
     //TODO: do your things here and delete this line <3
-
-    // 讓 Renderer 每一幀自動畫出所有東西
+    // 告訴渲染器，把所有 AddChild 進來的物件畫到畫面上 (包含你的地圖)
     m_Renderer.Update();
     /*
      * Do not touch the code below as they serve the purpose for

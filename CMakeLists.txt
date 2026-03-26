@@ -35,6 +35,11 @@ add_executable(${PROJECT_NAME}
     ${SRC_DIR}/main.cpp
     ${SRC_FILES}
     ${HEADER_FILES}
+        include/TileType.hpp
+        include/LevelData.hpp
+        src/LevelData.cpp
+        include/Map.hpp
+        src/Map.cpp
 )
 
 if(MSVC)
