@@ -4,13 +4,13 @@
 #include "pch.hpp" // IWYU pragma: export
 #include "Util/Renderer.hpp"
 
-#include "Util/Renderer.hpp"
 //#include "Character.hpp"
 //not used, #include "Util/Text.hpp"
 //not used, #include "PhaseResourceManger.hpp"
 //#include "AnimatedCharacter.hpp"
 
 #include "Mario.hpp"
+#include "Fiamma.hpp"
 
 
 
@@ -39,6 +39,7 @@ private:
 
     //void ShowMario(void);
     std::shared_ptr<Mario> m_Mario;
+    std::shared_ptr<Fiamma> m_Fireball;
 };
 
 #endif

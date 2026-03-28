@@ -43,13 +43,16 @@ public:
     // 設定角色的長寬縮放比例
     void SetScale(const glm::vec2& Scale) { m_Transform.scale = Scale; }
 
+    // 取得角色縮放後的實際尺寸
+    [[nodiscard]] glm::vec2 GetSize() const { return GetObjectSize(); }
+
     // 判斷此角色是否與另一個角色發生碰撞
     [[nodiscard]] bool IfCollides(const std::shared_ptr<Character>& other) const {
         // AABB (Axis-Aligned Bounding Box) collision detection.
         // This is more robust than a simple distance check because it considers
         // the actual size of the character images.
-        const auto self_half_size = GetObjectSize() / 2.0F;
-        const auto other_half_size = other->GetObjectSize() / 2.0F;
+        const auto self_half_size = GetSize() / 2.0F;
+        const auto other_half_size = other->GetSize() / 2.0F;
 
         // 取得自身與目標角色的中心點座標
         const auto& self_pos = GetPosition();
@@ -60,6 +63,15 @@ public:
                std::abs(self_pos.y - other_pos.y) < (self_half_size.y + other_half_size.y);
     }
 
+    // 判斷此角色是否與指定的座標與尺寸發生碰撞 (AABB)
+    [[nodiscard]] bool IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const {
+        const auto self_half_size = GetSize() / 2.0F;
+        const auto other_half_size = otherSize / 2.0F;
+        const auto& self_pos = GetPosition();
+        return std::abs(self_pos.x - otherPos.x) < (self_half_size.x + other_half_size.x) &&
+               std::abs(self_pos.y - otherPos.y) < (self_half_size.y + other_half_size.y);
+    }
+
     // TODO: 可根據需求加入更多方法與屬性以完善遊戲功能
 
 private:
@@ -68,8 +80,9 @@ private:
 
     // 取得角色圖片的實際解晰度/尺寸（寬與高）
     // 透過將 GameObject 內部的 m_Drawable 強制轉型為 Util::Image 來獲取正確的大小
+    // 同時考慮到 Scale 縮放
     [[nodiscard]] glm::vec2 GetObjectSize() const {
-        return std::dynamic_pointer_cast<Util::Image>(m_Drawable)->GetSize();
+        return std::dynamic_pointer_cast<Util::Image>(m_Drawable)->GetSize() * glm::abs(m_Transform.scale);
     }
 
     // 紀錄目前的圖片檔案路徑

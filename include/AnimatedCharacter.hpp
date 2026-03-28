@@ -51,6 +51,9 @@ public:
     // 取得角色目前在畫面上的二維位置座標
     [[nodiscard]] const glm::vec2& GetPosition() const { return m_Transform.translation; }
 
+    // 取得角色目前的縮放比例
+    [[nodiscard]] const glm::vec2& GetScale() const { return m_Transform.scale; }
+
     // 取得角色目前是否設定為可見狀態
     [[nodiscard]] bool GetVisibility() const { return m_Visible; }
 

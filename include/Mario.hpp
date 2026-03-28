@@ -49,6 +49,9 @@ public:
     // 取得當前位置
     glm::vec2 GetPosition() const { return m_Position; }
 
+    // 取得 Mario 的碰撞尺寸 (以 Idle 狀態為基準)
+    glm::vec2 GetSize() const;
+
     // 取得當前狀態
     MarioState GetState() const { return m_CurrentState; }
 
@@ -82,9 +85,10 @@ private:
     std::shared_ptr<AnimatedCharacter> m_Climb;
     std::shared_ptr<Character>         m_Jump;
     std::shared_ptr<Character>         m_Fall;
-    std::shared_ptr<Character>         m_Hammer;
+    std::shared_ptr<AnimatedCharacter> m_Hammer;
     std::shared_ptr<Character>         m_HammerIdle;
-    std::shared_ptr<Character>         m_Dead;
+    std::shared_ptr<AnimatedCharacter> m_Dead;
+    std::shared_ptr<Character>         m_DiedFinal;
     std::shared_ptr<Character>         m_Win;
 
     // 狀態與邏輯變數也封裝進來
@@ -96,6 +100,8 @@ private:
 
     bool m_IsJumping = false;
     float m_JumpTimer = 0.0f;
+    float m_DeadTimer = 0.0f;
+    float m_HammerTimer = 0.0f; // 槌子剩餘時間
     glm::vec2 m_JumpStartPosition;
 };
 
