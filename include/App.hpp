@@ -11,6 +11,8 @@
 
 #include "Mario.hpp"
 #include "Fiamma.hpp"
+#include "HUDManager.hpp"
+
 
 
 
@@ -40,6 +42,7 @@ private:
     //void ShowMario(void);
     std::shared_ptr<Mario> m_Mario;
     std::shared_ptr<Fiamma> m_Fireball;
+    std::shared_ptr<HUDManager> m_HUDText;
 };
 
 #endif

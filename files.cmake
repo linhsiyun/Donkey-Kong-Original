@@ -3,6 +3,7 @@ set(SRC_FILES
     Character.cpp
     Fiamma.cpp
     Mario.cpp
+    HUDManager.cpp
 )
 
 set(INCLUDE_FILES
@@ -11,6 +12,7 @@ set(INCLUDE_FILES
     Character.hpp
     Fiamma.hpp
     Mario.hpp
+    HUDManager.hpp
 )
 
 set(TEST_FILES

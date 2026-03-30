@@ -3,6 +3,7 @@
 #include "Util/Image.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
+#include "Util/Time.hpp"
 #include "Util/Logger.hpp"
 
 // 地面上的槌子道具物件
@@ -28,6 +29,11 @@ void App::Start() {
     m_HammerItem->SetPosition({150.0f, -50.5f});
     m_HammerItem->SetScale({m_Mario->marioScale, m_Mario->marioScale});
     m_Renderer.AddChild(m_HammerItem);
+
+    // 初始化text物件
+    m_HUDText = std::make_shared<HUDManager>();
+    m_HUDText->Init();
+    m_HUDText->AddToRenderer(m_Renderer);
 
     // 設定 App 物件初始狀態為 UPDATE，開始遊戲主迴圈
     m_CurrentState = State::UPDATE;
@@ -122,6 +128,9 @@ void App::Update() {
             m_HammerItem->SetVisible(false); // 撿起後讓地面上的槌子消失
         }
     }
+
+    // 傳入從上一幀到現在經過的msec數 (Delta Time)
+    m_HUDText->Update(Util::Time::GetDeltaTimeMs()); 
 
     // 在 PTSD 框架中，m_Renderer 是場景的根節點 (Renderer)，在每一幀(Frame)呼叫 m_Renderer.Update()，它會自動遞迴更新並繪製所有加入其中的子節點(Child)，
     // 因此我們不需要在這裡手動呼叫 每個物件的 Draw() 來繪製。只要確保在 Start() 中把 Mario 的所有圖層都加入 m_Renderer，並且在 Mario 的 Update() 中
