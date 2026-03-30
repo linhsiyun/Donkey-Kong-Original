@@ -97,9 +97,9 @@ void Mario::SetPosition(const glm::vec2& position) {
     // 修正槌子動畫中心點偏移問題
     // 因為槌子圖片通常比一般走路圖案高（包含槌子揮上去的高度），導致圖片中心點上移，Mario 的身體就會看起來往下掉或往上飄。
     // 可以微調 hammerYOffset 的數值（例如 -5.0f 到 -10.0f）直到身體對齊。
-    float hammerYOffset = -10.0f * marioScale; 
+    float hammerYOffset = 3.0f * marioScale;
     float hammerXOffset = 0.0f;
-    
+
     // 如果向右轉時感覺左右偏移不對稱，也可以在這裡根據 m_Direction 微調 XOffset
     // if (m_Direction == MarioDIR::RIGHT) hammerXOffset = 2.0f * marioScale;
 
@@ -111,6 +111,12 @@ void Mario::SetPosition(const glm::vec2& position) {
 }
 
 glm::vec2 Mario::GetSize() const {
+    if (m_CurrentState == MarioState::HAMMERING){
+        return m_Hammer->GetSize();
+    }
+    else if (m_CurrentState == MarioState::HAMMER_IDLE){
+        return m_HammerIdle->GetSize();
+    }
     return m_Idle->GetSize();
 }
 
@@ -134,16 +140,16 @@ void Mario::IDLE() {
     }
 }
 
+// Walk() 處理 Walking and Hammering 時的水平移動。
+// 這裡只管「座標」(m_Position) 與「方向狀態」(m_Direction), 圖片的反轉（SetScale）由 Update() 處理。
 void Mario::Walk(MarioDIR dir) {
     // TODO: 偵測邊界，如果有邊界的話就不能再往那個方向移動了 ...
     if (dir == MarioDIR::LEFT) {
         m_Position.x -= movingStep;
         m_Direction = MarioDIR::LEFT;
-        m_Walk->SetScale({marioScale, marioScale});
     } else if (dir == MarioDIR::RIGHT) {
         m_Position.x += movingStep;
         m_Direction = MarioDIR::RIGHT;
-        m_Walk->SetScale({-1*marioScale, marioScale});
     }
 
     // 如果狀態切換為走路，開始播放動畫
@@ -232,17 +238,24 @@ void Mario::Jump() {
     m_JumpTimer += 1.0f;
 
     if (m_JumpTimer > totalJumpTime) {
-        LOG_DEBUG("IDLE");
+        LOG_DEBUG("JUMP END");
         m_IsJumping = false;
         SetPosition({m_Position.x, m_JumpStartPosition.y}); // 確保回到地面
 
-        // 這裡設回站立，避免落地瞬間還顯示跳躍圖
-        SetState(MarioState::IDLE);
         m_JumpTimer = 0.0f;
         m_Direction = m_BackupDirection;   // 跳躍結束後恢復之前的方向
+        if (m_WaitForHammer) {
+            Hammer();
+            m_WaitForHammer = false;
+        }
+        else {
+            // 這裡設回站立，避免落地瞬間還顯示跳躍圖
+            SetState(MarioState::IDLE);
+        }
+
     }
     else {
-        LOG_DEBUG("JUMP");
+        //LOG_DEBUG("JUMP");
         // 計算拋物線高度: 4 * h * t * (1-t)
         float progress = m_JumpTimer / totalJumpTime;
         float yOffset = 4.0f * jumpHeight * progress * (1.0f - progress);
@@ -265,7 +278,11 @@ void Mario::Fall(){
     LOG_DEBUG("FALLING");
     SetState(MarioState::FALLING);
     //TODO: 落地後要不要有個短暫的無敵狀態？（例如剛從平台邊緣掉下去，還沒接觸到地面就先判定為 FALLING，等落地後再切回 IDLE 或 WALKING）
-};
+}
+
+void Mario::WaitForHammer(){
+    m_WaitForHammer = true;
+}
 
 void Mario::Hammer() {
     if (m_CurrentState != MarioState::DEAD) {
@@ -320,19 +337,26 @@ void Mario::Update() {
     if (m_CurrentState!=MarioState::WALKING) m_Walk->Stop();
     if (m_CurrentState!=MarioState::CLIMBING) m_Climb->Stop();
     if (m_CurrentState!=MarioState::DEAD) m_Dead->Stop();
-    //TODO: m_FALL->Stop(); ... 其他動畫如果有的話也要停止
+
+    // 根據面向 (m_Direction) 統一處理縮放邏輯
+    // 垂直跳躍時使用備份的方向，其餘使用當前方向
+    MarioDIR renderDir = (m_Direction == MarioDIR::NONE) ? m_BackupDirection : m_Direction;
+    float scaleX = (renderDir == MarioDIR::LEFT) ? marioScale : -1.0f * marioScale;
 
     // 3. 根據現在的狀態決定顯示哪個圖層，並執行該狀態的位移邏輯
     switch (m_CurrentState) {
         case MarioState::IDLE:
             m_Idle->SetVisible(true);
+            m_Idle->SetScale({scaleX, marioScale});
             break;
         case MarioState::WALKING:
             m_Walk->SetVisible(true);
+            m_Walk->SetScale({scaleX, marioScale});
             m_Walk->Play(); // 開始播放走路動畫
             break;
         case MarioState::JUMPING:
             m_Jump->SetVisible(true);
+            m_Jump->SetScale({scaleX, marioScale});
             break;
         case MarioState::CLIMBING:
             m_Climb->SetVisible(true);
@@ -346,20 +370,14 @@ void Mario::Update() {
         case MarioState::HAMMERING:
             m_Hammer->SetVisible(true);
             m_Hammer->Play();
-            
+
             // 處理計時器
             m_HammerTimer -= 1.0f;
             if (m_HammerTimer <= 0) {
                 LOG_DEBUG("HAMMER EXPIRED");
                 SetState(MarioState::IDLE);
             }
-
-            // 根據面向調整縮放
-            if (m_Direction == MarioDIR::LEFT) {
-                m_Hammer->SetScale({marioScale, marioScale});
-            } else {
-                m_Hammer->SetScale({-1.0f * marioScale, marioScale});
-            }
+            m_Hammer->SetScale({scaleX, marioScale});
             break;
         case MarioState::HAMMER_IDLE:   // TODO: m_HammerIdle->SetVisible(true);
             break;
@@ -370,7 +388,7 @@ void Mario::Update() {
                 // 1. 前 0.5 秒：停在 end1.png
                 m_Dead->SetVisible(true);
                 m_Dead->Stop(); // 預設回到第 0 幀
-            } 
+            }
             else if (m_DeadTimer < 102.0f) {
                 // 2. 接下來約 1.2 秒：快速循環 3 次 (假設 100ms 一幀，一圈 4 幀需 400ms)
                 m_Dead->SetVisible(true);
@@ -380,7 +398,7 @@ void Mario::Update() {
                     m_Dead->SetInterval(100); // 快速播放
                     m_Dead->Play();
                 }
-            } 
+            }
             else {
                 // 3. 最後：停在 mario_died.png
                 m_Dead->Stop();

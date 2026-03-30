@@ -68,6 +68,7 @@ public:
     void JumpStart(); // 這個函式專門負責觸發跳躍狀態，並初始化相關變數
     void Jump();
     void Fall();
+    void WaitForHammer();
     void Hammer();
     void HammerIdle();
     void Dead();
@@ -102,6 +103,8 @@ private:
     float m_JumpTimer = 0.0f;
     float m_DeadTimer = 0.0f;
     float m_HammerTimer = 0.0f; // 槌子剩餘時間
+    bool m_WaitForHammer = false;
+
     glm::vec2 m_JumpStartPosition;
 };
 

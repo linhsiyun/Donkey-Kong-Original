@@ -2,7 +2,7 @@
 #define FIAMMA_HPP
 
 #include "AnimatedCharacter.hpp"
-#include "Util/Animation.hpp"
+//#include "Util/Animation.hpp"
 #include <cmath>
 
 class Fiamma : public AnimatedCharacter {
@@ -25,11 +25,6 @@ public:
     }
 
 private:
-    // 取得目前動畫幀的尺寸
-    [[nodiscard]] glm::vec2 GetSize() const {
-        return std::dynamic_pointer_cast<Util::Animation>(m_Drawable)->GetSize() * glm::abs(GetScale());
-    }
-
     glm::vec2 m_Velocity = {1.5f, 0.0f}; // 移動速度，可自行調整
     const float m_BoundX = 300.0f;       // 左右移動的邊界範圍
 };

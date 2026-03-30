@@ -65,6 +65,11 @@ public:
     // 設定角色的長寬縮放比例
     void SetScale(const glm::vec2& Scale) { m_Transform.scale = Scale; }
 
+    // 取得角色縮放後的實際尺寸 (以目前動畫幀為準)
+    [[nodiscard]] glm::vec2 GetSize() const {
+        return std::dynamic_pointer_cast<Util::Animation>(m_Drawable)->GetSize() * glm::abs(GetScale());
+    }
+
     // 停止播放動畫，並將畫面重置回到第 0 幀（初始狀態）
     void Stop() {
         auto temp = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
