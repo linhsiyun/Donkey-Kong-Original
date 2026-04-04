@@ -1,10 +1,11 @@
 #include "App.hpp"
 
-#include "Util/Image.hpp"
+//#include "Util/Image.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Time.hpp"
 #include "Util/Logger.hpp"
+#include "config.hpp"
 
 // 地面上的槌子道具物件
 static std::shared_ptr<Character> m_HammerItem;
@@ -12,9 +13,15 @@ static std::shared_ptr<Character> m_HammerItem;
 void App::Start() {
     LOG_TRACE("Start");
 
+    // 透過 PTSD_Config 取得視窗大小
+    halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
+    halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
+    LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
+
+
     // 初始化 Mario 物件，並設定初始位置
     m_Mario = std::make_shared<Mario>();
-    m_Mario->SetPosition({-112.5f, -140.5f});
+    m_Mario->SetPosition({-halfWidth + 100.0f, -halfHeight + 100.0f});
 
     // 把 Mario 裡面所有的圖層一口氣加進 App 的Renderer中
     m_Mario->AddToRenderer(m_Renderer);
@@ -35,14 +42,94 @@ void App::Start() {
     m_HUDText->Init();
     m_HUDText->AddToRenderer(m_Renderer);
 
+    // 初始化 DonkeyKong 物件並設定動畫圖片
+    std::vector<std::string> dkImages = {
+        RESOURCE_DIR"/Images/DK1.png",
+        RESOURCE_DIR"/Images/DK2.png",
+        RESOURCE_DIR"/Images/DK3.png",
+        RESOURCE_DIR"/Images/DK4.png",
+        RESOURCE_DIR"/Images/DK5.png"
+    };
+    m_DonkeyKong = std::make_shared<DonkeyKong>(dkImages);
+    m_DonkeyKong->SetPosition({-halfWidth + 100.0f, halfHeight - 150.0f}); // 設定 Donkey Kong 到畫面上方
+    m_DonkeyKong->SetZIndex(50); // 可選：調整圖層順序
+    //m_DonkeyKong->SetScale({m_Mario->marioScale, m_Mario->marioScale});  // 2.5倍
+#if 1 //TODO
+    // 設定產出木桶的回呼行為 (callback function)
+    // [this] 捕捉 this 指標，代表在此 Lambda 裡面可以呼叫及使用 App 的成員函式與變數 (如 this->SpawnBarrel)
+    m_DonkeyKong->SetBarrelSpawnCallback([this]() {
+        this->SpawnBarrel();
+    });
+#endif
+    m_Renderer.AddChild(m_DonkeyKong);
+
     // 設定 App 物件初始狀態為 UPDATE，開始遊戲主迴圈
     m_CurrentState = State::UPDATE;
+    LOG_TRACE("UPDATE");
 }
 
+#if 1 //TODO
+// 這是我們將原本寫在 App::Start 裡面的 Lambda ({...}) 抽出來的一般成員函式
+// 這樣寫可以讓程式碼比較好讀，不會讓 App::Start 太肥大，同時如果有其他地方需要產酒桶也可以重複呼叫。
+void App::SpawnBarrel() {
+    LOG_DEBUG("++barrel");
+
+    // 準備酒桶的動畫素材
+    std::vector<std::string> barrelImages = {
+        RESOURCE_DIR"/Images/Barrel1.png",
+        RESOURCE_DIR"/Images/Barrel2.png",
+        RESOURCE_DIR"/Images/Barrel3.png",
+        RESOURCE_DIR"/Images/Barrel4.png",
+        RESOURCE_DIR"/Images/Barrel5.png",
+        RESOURCE_DIR"/Images/Barrel6.png"
+    };
+
+    // 產生一個新的酒桶
+    auto newBarrel = std::make_shared<Barrel>(barrelImages);
+
+    // 將酒桶的初始位置設定在 DK 旁邊 (可以做微調)
+    glm::vec2 dkPos = m_DonkeyKong->GetPosition();
+    newBarrel->SetPosition({dkPos.x + 40.0f, dkPos.y - 10.0f});
+
+    // 可選：設定初始速度、層級
+    newBarrel->SetZIndex(40);
+    //newBarrel->SetScale({m_Mario->marioScale, m_Mario->marioScale});    // 2.5倍
+    newBarrel->SetDirection(Barrel::Direction::RIGHT);
+
+    // 將酒桶暫存在清單維護並加入畫面繪製的根節點
+    m_Barrels.push_back(newBarrel);
+    m_Renderer.AddChild(newBarrel);
+}
+#endif
 void App::Update() {
 
     // 只有在 Mario 活著的時候才處理輸入與狀態轉換
     if (m_Mario->GetState() != MarioState::DEAD) {
+
+        // 呼叫 DonkeyKong 的 Update 來更新計時與動作
+        if (m_DonkeyKong) {
+            m_DonkeyKong->Update();
+        }
+#if 1 // TODO
+        // 更新畫面上的所有酒桶
+
+        for (auto it = m_Barrels.begin(); it != m_Barrels.end(); ) {
+            auto& barrel = *it;
+            barrel->Update();
+
+            // 取得酒桶座標
+            glm::vec2 pos = barrel->GetPosition();
+
+            // 判定是否超出邊界（增加 50.0f 的緩衝，讓酒桶完全消失在畫面外再刪除）
+            if (std::abs(pos.x) > halfWidth + 50.0f || std::abs(pos.y) > halfHeight + 50.0f) {
+                LOG_DEBUG("--barrel");
+                m_Renderer.RemoveChild(barrel); // 1. 從渲染器移除
+                it = m_Barrels.erase(it);       // 2. 從 vector 移除，並取得指向下一個元素的迭代器
+            } else {
+                ++it; // 沒被刪除時才手動增加迭代器
+            }
+        }
+#endif
         // 1. 偵測跳躍觸發
         if ((m_Mario->GetState() != MarioState::JUMPING)
             && (m_Mario->GetState() != MarioState::CLIMBING)
@@ -130,7 +217,7 @@ void App::Update() {
     }
 
     // 傳入從上一幀到現在經過的msec數 (Delta Time)
-    m_HUDText->Update(Util::Time::GetDeltaTimeMs()); 
+    m_HUDText->Update(Util::Time::GetDeltaTimeMs());
 
     // 在 PTSD 框架中，m_Renderer 是場景的根節點 (Renderer)，在每一幀(Frame)呼叫 m_Renderer.Update()，它會自動遞迴更新並繪製所有加入其中的子節點(Child)，
     // 因此我們不需要在這裡手動呼叫 每個物件的 Draw() 來繪製。只要確保在 Start() 中把 Mario 的所有圖層都加入 m_Renderer，並且在 Mario 的 Update() 中

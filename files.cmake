@@ -1,18 +1,22 @@
 set(SRC_FILES
     App.cpp
     Character.cpp
+    DonkeyKong.cpp
     Fiamma.cpp
-    Mario.cpp
     HUDManager.cpp
+    Mario.cpp
+    Barrel.cpp
 )
 
 set(INCLUDE_FILES
     App.hpp
     AnimatedCharacter.hpp
     Character.hpp
+    DonkeyKong.hpp
     Fiamma.hpp
-    Mario.hpp
     HUDManager.hpp
+    Mario.hpp
+    Barrel.hpp
 )
 
 set(TEST_FILES
