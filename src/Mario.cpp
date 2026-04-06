@@ -39,17 +39,6 @@ Mario::Mario() {
     m_Jump->SetVisible(false);
     m_Jump->SetScale({marioScale, marioScale});
 
-    // 初始化 Mario 死亡動畫 (AnimatedCharacter: end1, 2, 3, 4)
-    std::vector<std::string> deadImages;
-    deadImages.reserve(4);
-    for (int i = 1; i <= 4; ++i) {
-        deadImages.emplace_back(RESOURCE_DIR"/Images/end" + std::to_string(i) + ".png");
-    }
-    m_Dead = std::make_shared<AnimatedCharacter>(deadImages);
-    m_Dead->SetZIndex(55); // 死亡動畫層級設高一點
-    m_Dead->SetVisible(false);
-    m_Dead->SetScale({marioScale, marioScale});
-
     // 初始化 Mario 拿槌子的動畫 (Hammer1 ~ Hammer6)
     std::vector<std::string> hammerImages;
     hammerImages.reserve(6);
@@ -62,6 +51,17 @@ Mario::Mario() {
     m_Hammer->SetScale({marioScale, marioScale});
     m_Hammer->SetInterval(150); // 將間隔從 100ms 增加到 150ms 以放慢速度
     m_Hammer->SetLooping(true);
+
+    // 初始化 Mario 死亡動畫 (AnimatedCharacter: end1, 2, 3, 4)
+    std::vector<std::string> deadImages;
+    deadImages.reserve(4);
+    for (int i = 1; i <= 4; ++i) {
+        deadImages.emplace_back(RESOURCE_DIR"/Images/end" + std::to_string(i) + ".png");
+    }
+    m_Dead = std::make_shared<AnimatedCharacter>(deadImages);
+    m_Dead->SetZIndex(55); // 死亡動畫層級設高一點
+    m_Dead->SetVisible(false);
+    m_Dead->SetScale({marioScale, marioScale});
 
     // 初始化 Mario 最終死亡定格圖
     m_DiedFinal = std::make_shared<Character>(RESOURCE_DIR"/Images/mario_died.png");
@@ -406,7 +406,9 @@ void Mario::Update() {
                 m_DiedFinal->SetVisible(true);
             }
             break;
-        case MarioState::WIN:    // TODO:
+        case MarioState::WIN:    // 顯示 Idle
+            m_Idle->SetVisible(true);
+            m_Idle->SetScale({scaleX, marioScale});
             break;
     }
 

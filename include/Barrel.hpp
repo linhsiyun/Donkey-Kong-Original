@@ -55,6 +55,9 @@ public:
     void SetMoveSpeed(float speed) { m_MoveSpeed = speed; }
     void SetFallSpeed(float speed) { m_FallSpeed = speed; }
 
+    // 碰撞偵測
+    [[nodiscard]] bool IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const;
+
 private:
     State m_State = State::ROLLING;          // 預設為滾動狀態
     Direction m_Direction = Direction::RIGHT; // 預設向右滾動

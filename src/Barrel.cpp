@@ -88,3 +88,12 @@ void Barrel::Update() {
     //  - 偵測掉落到底部平台，並切換回 State::ROLLING，再改變方向(SetDirection)
     //  - 偵測與 Mario 的碰撞或是否離開畫面以銷毀物件
 }
+
+bool Barrel::IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const {
+    const auto self_half_size = GetSize() / 2.0f;
+    const auto other_half_size = otherSize / 2.0f;
+    const auto& self_pos = GetPosition();
+
+    return std::abs(self_pos.x - otherPos.x) < (self_half_size.x + other_half_size.x) &&
+           std::abs(self_pos.y - otherPos.y) < (self_half_size.y + other_half_size.y);
+}

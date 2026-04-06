@@ -53,7 +53,7 @@ void App::Start() {
     m_DonkeyKong = std::make_shared<DonkeyKong>(dkImages);
     m_DonkeyKong->SetPosition({-halfWidth + 100.0f, halfHeight - 150.0f}); // 設定 Donkey Kong 到畫面上方
     m_DonkeyKong->SetZIndex(50); // 可選：調整圖層順序
-    //m_DonkeyKong->SetScale({m_Mario->marioScale, m_Mario->marioScale});  // 2.5倍
+    m_DonkeyKong->SetScale({m_Mario->marioScale/1.5f, m_Mario->marioScale/1.5f});
 #if 1 //TODO
     // 設定產出木桶的回呼行為 (callback function)
     // [this] 捕捉 this 指標，代表在此 Lambda 裡面可以呼叫及使用 App 的成員函式與變數 (如 this->SpawnBarrel)
@@ -89,11 +89,11 @@ void App::SpawnBarrel() {
 
     // 將酒桶的初始位置設定在 DK 旁邊 (可以做微調)
     glm::vec2 dkPos = m_DonkeyKong->GetPosition();
-    newBarrel->SetPosition({dkPos.x + 40.0f, dkPos.y - 10.0f});
+    newBarrel->SetPosition({dkPos.x + 40.0f, dkPos.y - 20.0f});
 
     // 可選：設定初始速度、層級
     newBarrel->SetZIndex(40);
-    //newBarrel->SetScale({m_Mario->marioScale, m_Mario->marioScale});    // 2.5倍
+    newBarrel->SetScale({m_Mario->marioScale/1.5f, m_Mario->marioScale/1.5f});
     newBarrel->SetDirection(Barrel::Direction::RIGHT);
 
     // 將酒桶暫存在清單維護並加入畫面繪製的根節點
@@ -103,19 +103,33 @@ void App::SpawnBarrel() {
 #endif
 void App::Update() {
 
-    // 只有在 Mario 活著的時候才處理輸入與狀態轉換
-    if (m_Mario->GetState() != MarioState::DEAD) {
+    // 1. 取得當前狀態，判定是否處於「可遊玩」狀態
+    MarioState marioState = m_Mario->GetState();
+    bool isPlaying = (marioState != MarioState::DEAD && marioState != MarioState::WIN);
 
-        // 呼叫 DonkeyKong 的 Update 來更新計時與動作
+    if (isPlaying) {
+
+        // 2. 更新 DonkeyKong (若停止更新，其產酒桶的回呼就不會觸發)
         if (m_DonkeyKong) {
             m_DonkeyKong->Update();
         }
 #if 1 // TODO
         // 更新畫面上的所有酒桶
-
         for (auto it = m_Barrels.begin(); it != m_Barrels.end(); ) {
             auto& barrel = *it;
             barrel->Update();
+
+            // 8. 碰撞偵測：Mario 與酒桶
+            if (barrel->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                if (marioState == MarioState::HAMMERING) {
+                    LOG_DEBUG("BARREL DESTROYED BY HAMMER!");
+                    m_Renderer.RemoveChild(barrel); // 從渲染器移除
+                    it = m_Barrels.erase(it);       // 從清單移除
+                    continue;                       // 跳過後續處理，直接檢查下一個酒桶
+                } else {
+                    m_Mario->Dead();                // Mario 死亡
+                }
+            }
 
             // 取得酒桶座標
             glm::vec2 pos = barrel->GetPosition();
@@ -130,7 +144,7 @@ void App::Update() {
             }
         }
 #endif
-        // 1. 偵測跳躍觸發
+        // 3. 處理 Mario 輸入
         if ((m_Mario->GetState() != MarioState::JUMPING)
             && (m_Mario->GetState() != MarioState::CLIMBING)
             && (m_Mario->GetState() != MarioState::HAMMERING) // 拿槌子時禁止跳躍
@@ -150,6 +164,11 @@ void App::Update() {
                 //if (m_Mario->GetState() != MarioState::HAMMERING )
                 {
                     m_Mario->Climb(CLIMB_DIR::UP);
+
+                    glm::vec2 pos = m_Mario->GetPosition();
+                    if (pos.y >= (halfHeight - 100.0f)) {
+                        m_Mario->Win();
+                    }
                 }
             }
             // 向下攀爬
@@ -176,52 +195,43 @@ void App::Update() {
                 m_Mario->Walk(MarioDIR::RIGHT);
             }
             // 放開左右鍵時，重置回靜止狀態
-            else if (Util::Input::IsKeyUp(Util::Keycode::LEFT) || Util::Input::IsKeyUp(Util::Keycode::RIGHT)) {
+            else if (Util::Input::IsKeyUp(Util::Keycode::LEFT) ||
+                     Util::Input::IsKeyUp(Util::Keycode::RIGHT)) {
                 m_Mario->IDLE();
             }
         }
-    }
 
-    // 4. 顯示邏輯：根據目前的 marioState 決定顯示哪個物件, 以及是否播放動畫 (例如 WALKING 和 CLIMBING 是 AnimatedCharacter，需要呼叫 Play()，
-    //    其他則是 Character，呼叫 Visible(true))
-    // 注意：這裡的 Update() 是 Mario 類別裡的 Update()，它會根據當前狀態來決定哪個圖層要 Visible(true) 或 Play()，其他圖層則是 Visible(false)
-    // 或 Stop()。這樣的設計讓 App 的 Update() 可以專注在處理輸入和狀態轉換，而 Mario 的 Update() 則專注在根據狀態來控制圖層的顯示和動畫播放，
-    // 達到職責分離。
-    m_Mario->Update();
+        // 4. 更新火球移動邏輯
+        if (m_Fireball->GetVisibility()) {
+            m_Fireball->Update();
+        }
 
-    // 更新火球邏輯（包含動畫切換與左右移動）
-    if (m_Fireball->GetVisibility()) {
-        m_Fireball->Update();
-    }
-
-    // 5. 碰撞偵測：Mario 與火球 (只有在 Mario 還沒死的時候才偵測)
-    if (m_Mario->GetState() != MarioState::DEAD && m_Fireball->GetVisibility()) {
-       if (m_Fireball->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
-            if (m_Mario->GetState() == MarioState::HAMMERING) {
-                LOG_DEBUG("FIREBALL DESTROYED BY HAMMER!");
-                m_Fireball->SetVisible(false); // 消除火球
-            } else {
-                LOG_DEBUG("DIED");
-                m_Mario->Dead();
+        // 5. 碰撞偵測：Mario 與火球
+        if (m_Fireball->GetVisibility()) {
+           if (m_Fireball->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                if (m_Mario->GetState() == MarioState::HAMMERING) {
+                    LOG_DEBUG("FIREBALL DESTROYED BY HAMMER!");
+                    m_Fireball->SetVisible(false);
+                } else {
+                    m_Mario->Dead();
+                }
             }
         }
-    }
 
-    // 6. 道具偵測：撿起槌子
-    if (m_HammerItem && m_HammerItem->GetVisibility() && m_Mario->GetState() == MarioState::JUMPING) {
-        if (m_HammerItem->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
-            //m_Mario->Hammer();
-            m_Mario->WaitForHammer();   // Jumping才拿到鎚子, 等落地才轉為HAMMERING state
-            m_HammerItem->SetVisible(false); // 撿起後讓地面上的槌子消失
+        // 6. 道具偵測：撿起槌子
+        if (m_HammerItem && m_HammerItem->GetVisibility() && m_Mario->GetState() == MarioState::JUMPING) {
+            if (m_HammerItem->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                m_Mario->WaitForHammer();
+                m_HammerItem->SetVisible(false);
+            }
         }
+
+        // 7. 更新 HUD (包含 Bonus 時間倒數)
+        m_HUDText->Update(Util::Time::GetDeltaTimeMs());
     }
 
-    // 傳入從上一幀到現在經過的msec數 (Delta Time)
-    m_HUDText->Update(Util::Time::GetDeltaTimeMs());
-
-    // 在 PTSD 框架中，m_Renderer 是場景的根節點 (Renderer)，在每一幀(Frame)呼叫 m_Renderer.Update()，它會自動遞迴更新並繪製所有加入其中的子節點(Child)，
-    // 因此我們不需要在這裡手動呼叫 每個物件的 Draw() 來繪製。只要確保在 Start() 中把 Mario 的所有圖層都加入 m_Renderer，並且在 Mario 的 Update() 中
-    // 根據狀態來控制圖層的 Visible 和 Play，m_Renderer 就能讓整個場景正確顯示。
+    // 即使遊戲結束，Mario 的動畫更新 (例如 Win 動畫) 與 Renderer 仍需持續運行
+    m_Mario->Update();
     m_Renderer.Update();
 
 

@@ -70,7 +70,7 @@ void HUDManager::Update(float deltaTime) {
 
     // 更新 Bonus 倒數
     bonusTimer += deltaTime;
-    if (bonusTimer >= 1000.0f) {
+    if (bonusTimer >= 2000.0f && bonusTime > 00.0f) {
         bonusTime -= 100;
         bonusTimer = 0.0f;
         bonusText->SetText(FormatInt(bonusTime, 4));
