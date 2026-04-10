@@ -14,7 +14,7 @@ void App::Start() {
     LOG_TRACE("Start");
 
     // 初始化地圖，並加入到 Renderer 渲染清單中
-    m_Map = std::make_shared<Map>("../Resources/Images/DonkeyKongSprites2.png", "../Resources/Maps/Map1.txt");
+    m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
     m_Renderer.AddChild(m_Map);
 
     /*測試用
@@ -25,8 +25,8 @@ void App::Start() {
     */
 
     // 透過 PTSD_Config 取得視窗大小
-    halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
-    halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
+    halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
+    halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
     LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
 
 

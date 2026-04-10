@@ -27,6 +27,7 @@ public:
 
 private:
     LevelData m_LevelData;
+    void AutoScale();
 };
 
 #endif // MAP_HPP
