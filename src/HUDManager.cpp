@@ -11,8 +11,8 @@ static std::string FormatInt(int score, int width) {
 
 HUDManager::HUDManager() {
     // 透過 PTSD_Config 取得視窗大小
-    float halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
-    float halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
+    float halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
+    float halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
 
     // --- 這裡只設定一次 ---
     const std::string fontPath = RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf";
@@ -21,21 +21,21 @@ HUDManager::HUDManager() {
     const Util::Color blue = Util::Color(0, 0, 255, 255);
 
     // Util::Text constructor requires: font, size, text, color, visibility
-    scoreText = std::make_shared<Util::Text>(fontPath, 16, FormatInt(currentScore, 6), white, true);
+    scoreText = std::make_shared<Util::Text>(fontPath, 16, FormatInt(currentScore, 6), white);
     scoreObject = std::make_shared<Util::GameObject>();
     scoreObject->SetDrawable(scoreText);
     scoreObject->SetZIndex(100);  // HUD 應設為較高的 ZIndex 以顯示在最前方
     scoreObject->m_Transform.translation = {-halfWidth + 100.0f, halfHeight - 50.0f};
     scoreObject->SetVisible(true);
 
-    highScoreText = std::make_shared<Util::Text>(fontPath, 16, FormatInt(highScore, 6), white, true);
+    highScoreText = std::make_shared<Util::Text>(fontPath, 16, FormatInt(highScore, 6), white);
     highScoreObject = std::make_shared<Util::GameObject>();
     highScoreObject->SetDrawable(highScoreText);
     highScoreObject->SetZIndex(100);
     highScoreObject->m_Transform.translation = {0.0f, halfHeight - 50.0f};
     highScoreObject->SetVisible(true);
 
-    levelText = std::make_shared<Util::Text>(fontPath, 16, "L=" + FormatInt(level,2), blue, true);
+    levelText = std::make_shared<Util::Text>(fontPath, 16, "L=" + FormatInt(level,2), blue);
     levelObject = std::make_shared<Util::GameObject>();
     levelObject->SetDrawable(levelText);
     levelObject->SetZIndex(100);
@@ -43,7 +43,7 @@ HUDManager::HUDManager() {
     levelObject->SetVisible(true);
 
 
-    bonusText = std::make_shared<Util::Text>(fontPath, 16, std::to_string(bonusTime), white, true);
+    bonusText = std::make_shared<Util::Text>(fontPath, 16, std::to_string(bonusTime), white);
     bonusObject = std::make_shared<Util::GameObject>();
     bonusObject->SetDrawable(bonusText);
     bonusObject->SetZIndex(100);

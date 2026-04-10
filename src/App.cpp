@@ -1,5 +1,5 @@
 #include "App.hpp"
-
+#include "Map.hpp"
 //#include "Util/Image.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
@@ -13,9 +13,20 @@ static std::shared_ptr<Character> m_HammerItem;
 void App::Start() {
     LOG_TRACE("Start");
 
+    // 初始化地圖，並加入到 Renderer 渲染清單中
+    m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
+    m_Renderer.AddChild(m_Map);
+
+    /*測試用
+    m_TestMarker = std::make_shared<Util::GameObject>();
+    m_TestMarker->SetDrawable(std::make_shared<Util::Image>("../Resources/Images/fiamma2.png"));
+    m_TestMarker->SetZIndex(5.0f); // 確保游標顯示在地圖上方
+    m_Renderer.AddChild(m_TestMarker);
+    */
+
     // 透過 PTSD_Config 取得視窗大小
-    halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
-    halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
+    halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
+    halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
     LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
 
 
@@ -107,6 +118,26 @@ void App::Update() {
     MarioState marioState = m_Mario->GetState();
     bool isPlaying = (marioState != MarioState::DEAD && marioState != MarioState::WIN);
 
+    /*測試用
+    float speed = 5.0f;
+    auto transform = m_TestMarker->GetTransform();
+    if (Util::Input::IsKeyPressed(Util::Keycode::W)) { transform.translation.y += speed; }
+    if (Util::Input::IsKeyPressed(Util::Keycode::S)) { transform.translation.y -= speed; }
+    if (Util::Input::IsKeyPressed(Util::Keycode::A)) { transform.translation.x -= speed; }
+    if (Util::Input::IsKeyPressed(Util::Keycode::D)) { transform.translation.x += speed; }
+    m_TestMarker->m_Transform = transform;
+    if (Util::Input::IsKeyDown(Util::Keycode::SPACE)) {
+        float x = transform.translation.x;
+        float y = transform.translation.y;
+        TileType tile = m_Map->GetTileAtPosition(x, y);
+        LOG_INFO("游標座標: ({}, {}), 對應 TXT 代號: {}", x, y, static_cast<int>(tile));
+    }
+    */
+    // 假設按下 Enter 鍵切換到第二關
+    if (Util::Input::IsKeyDown(Util::Keycode::RETURN)) {
+        m_Map->LoadNewMap("../Resources/Images/dk.png", "level2.txt");
+    }
+    // 告訴渲染器，把所有 AddChild 進來的物件畫到畫面上 (包含你的地圖)
     if (isPlaying) {
 
         // 2. 更新 DonkeyKong (若停止更新，其產酒桶的回呼就不會觸發)

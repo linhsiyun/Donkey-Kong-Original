@@ -3,6 +3,9 @@
 
 #include "pch.hpp" // IWYU pragma: export
 #include "Util/Renderer.hpp"
+#include "Map.hpp"
+
+#include "Util/GameObject.hpp"
 
 //#include "Character.hpp"
 //not used, #include "Util/Text.hpp"
@@ -38,6 +41,9 @@ private:
     void SpawnBarrel();
 
     Util::Renderer m_Renderer;
+    std::shared_ptr<Map> m_Map;
+
+    //測試用 std::shared_ptr<Util::GameObject> m_TestMarker;
 
 private:
     State m_CurrentState = State::START;
