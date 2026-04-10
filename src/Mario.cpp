@@ -89,6 +89,7 @@ void Mario::AddToRenderer(Util::Renderer& renderer) {
 // 關鍵函式：設定座標時，所有潛在的圖層都一起更新座標
 void Mario::SetPosition(const glm::vec2& position) {
     m_Position = position;
+    m_LastPosition = position; // 初始化或強制位移時也同步更新上一幀位置
     m_Idle->SetPosition(position);
     m_Walk->SetPosition(position);
     m_Climb->SetPosition(position);
@@ -314,6 +315,10 @@ void Mario::Win() {
     //TODO: 這裡可以加入一些特殊邏輯，例如在 WIN 狀態下不能移動或跳躍，或者有個專屬的過場動畫等等
 }
 
+void Mario::SetScreenBounds(float halfWidth, float halfHeight) {
+    m_ScreenHalfWidth = halfWidth;
+    m_ScreenHalfHeight = halfHeight;
+}
 
 // 每幀更新：給 App的Update 呼叫
 void Mario::Update() {
@@ -413,6 +418,39 @@ void Mario::Update() {
     }
 
     // 4. 重要：同步物理座標到所有圖片物件
+    const auto mario_half_size = GetSize() / 2.0f;
+
+    // --- A. 螢幕邊界檢查 ---
+    if (m_ScreenHalfWidth > 0 && m_ScreenHalfHeight > 0) {
+        float limitX = m_ScreenHalfWidth - mario_half_size.x;
+        float limitY = m_ScreenHalfHeight - mario_half_size.y;
+
+        if (m_Position.x > limitX) m_Position.x = limitX;
+        if (m_Position.x < -limitX) m_Position.x = -limitX;
+        if (m_Position.y > limitY) m_Position.y = limitY;
+        if (m_Position.y < -limitY) m_Position.y = -limitY;
+    }
+
+    // --- B. Donkey Kong 碰撞檢查 ---
+    if (m_DonkeyKongSize.x > 0 && m_DonkeyKongSize.y > 0) {
+        const auto dk_half_size = m_DonkeyKongSize / 2.0f;
+
+        bool collideX = std::abs(m_Position.x - m_DonkeyKongPos.x) < (mario_half_size.x + dk_half_size.x);
+        bool collideY = std::abs(m_Position.y - m_DonkeyKongPos.y) < (mario_half_size.y + dk_half_size.y);
+
+        if (collideX && collideY) {
+            m_Position = m_LastPosition; // 發生重疊，退回上一個合法的位置
+        }
+    }
+
+    // 更新上一幀位置，供下一幀檢查使用
+    m_LastPosition = m_Position;
+
     // 無論 Mario 是在走路、跳躍還是死亡墜落，這行保證了畫面上看到的圖會跟著 m_Position 移動
     SetPosition(m_Position);
+}
+
+void Mario::SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize) {
+    m_DonkeyKongPos = dkPos;
+    m_DonkeyKongSize = dkSize;
 }

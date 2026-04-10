@@ -1,6 +1,7 @@
-#include "HudManager.hpp"
+#include "HUDManager.hpp"
 #include <iomanip>
 #include <sstream>
+#include "Character.hpp"
 #include "config.hpp"
 
 static std::string FormatInt(int score, int width) {
@@ -49,6 +50,43 @@ HUDManager::HUDManager() {
     bonusObject->SetZIndex(100);
     bonusObject->m_Transform.translation = {halfWidth - 100.0f, halfHeight - 100.0f}; // 往下位移避免重疊
     bonusObject->SetVisible(true);
+
+    // 在 currentScore 下方放置 3 個橫向排列的生命圖示
+    for (int i = 0; i < 3; ++i) {
+        auto lifeIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Walk0.png");
+        lifeIcon->SetZIndex(100);
+        lifeIcon->SetScale({1.0f, 1.0f}); // 縮小比例
+        float x = (-halfWidth + 60.0f) + (i * 22.0f); // 收緊間距
+        float y = halfHeight - 75.0f;                 // 往上移動緊貼分數
+        lifeIcon->SetPosition({x, y});
+        lifeObjects.push_back(lifeIcon);
+    }
+
+    // 在生命圖示下方放置 Hammer 圖示與初始值 0
+    hammerIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
+    hammerIcon->SetZIndex(100);
+    hammerIcon->SetScale({1.0f, 1.0f}); // 縮小比例
+    hammerIcon->SetPosition({-halfWidth + 60.0f, halfHeight - 100.0f}); // 向上緊縮
+
+    hammerCountText = std::make_shared<Util::Text>(fontPath, 16, " 0", white);
+    hammerCountObject = std::make_shared<Util::GameObject>();
+    hammerCountObject->SetDrawable(hammerCountText);
+    hammerCountObject->SetZIndex(100);
+    hammerCountObject->m_Transform.translation = {-halfWidth + 95.0f, halfHeight - 100.0f};
+    hammerCountObject->SetVisible(true);
+
+    // 在 Hammer 下方放置 Barrel 圖示與初始值 0
+    barrelIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Barrel1.png");
+    barrelIcon->SetZIndex(100);
+    barrelIcon->SetScale({1.0f, 1.0f}); // 縮小比例
+    barrelIcon->SetPosition({-halfWidth + 60.0f, halfHeight - 125.0f}); // 向上緊縮
+
+    barrelCountText = std::make_shared<Util::Text>(fontPath, 16, " 0", white);
+    barrelCountObject = std::make_shared<Util::GameObject>();
+    barrelCountObject->SetDrawable(barrelCountText);
+    barrelCountObject->SetZIndex(100);
+    barrelCountObject->m_Transform.translation = {-halfWidth + 95.0f, halfHeight - 125.0f};
+    barrelCountObject->SetVisible(true);
 }
 
 void HUDManager::Init() {
@@ -63,6 +101,17 @@ void HUDManager::AddToRenderer(Util::Renderer& renderer) {
     renderer.AddChild(highScoreObject);
     renderer.AddChild(levelObject);
     renderer.AddChild(bonusObject);
+
+    // 將生命值圖示加入渲染器
+    for (auto& life : lifeObjects) {
+        renderer.AddChild(life);
+    }
+
+    // 加入新的圖示與文字到渲染器
+    renderer.AddChild(hammerIcon);
+    renderer.AddChild(hammerCountObject);
+    renderer.AddChild(barrelIcon);
+    renderer.AddChild(barrelCountObject);
 }
 
 void HUDManager::Update(float deltaTime) {

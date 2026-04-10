@@ -9,6 +9,7 @@
 
 // 地面上的槌子道具物件
 static std::shared_ptr<Character> m_HammerItem;
+static std::shared_ptr<Character> m_HammerItem2;
 
 void App::Start() {
     LOG_TRACE("Start");
@@ -33,6 +34,9 @@ void App::Start() {
     // 初始化 Mario 物件，並設定初始位置
     m_Mario = std::make_shared<Mario>();
     m_Mario->SetPosition({-halfWidth + 100.0f, -halfHeight + 100.0f});
+    
+    // 設定螢幕邊界，讓 Mario 的 Update 邏輯可以進行限制
+    m_Mario->SetScreenBounds(halfWidth, halfHeight);
 
     // 把 Mario 裡面所有的圖層一口氣加進 App 的Renderer中
     m_Mario->AddToRenderer(m_Renderer);
@@ -48,6 +52,12 @@ void App::Start() {
     m_HammerItem->SetScale({m_Mario->marioScale, m_Mario->marioScale});
     m_Renderer.AddChild(m_HammerItem);
 
+    // 初始化第二個槌子道具，放在靠近酒桶滾動的路徑上 (測試用)
+    m_HammerItem2 = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
+    m_HammerItem2->SetPosition({-halfWidth + 500.0f, halfHeight - 200.0f});
+    m_HammerItem2->SetScale({m_Mario->marioScale, m_Mario->marioScale});
+    m_Renderer.AddChild(m_HammerItem2);
+
     // 初始化text物件
     m_HUDText = std::make_shared<HUDManager>();
     m_HUDText->Init();
@@ -62,7 +72,7 @@ void App::Start() {
         RESOURCE_DIR"/Images/DK5.png"
     };
     m_DonkeyKong = std::make_shared<DonkeyKong>(dkImages);
-    m_DonkeyKong->SetPosition({-halfWidth + 100.0f, halfHeight - 150.0f}); // 設定 Donkey Kong 到畫面上方
+    m_DonkeyKong->SetPosition({-halfWidth + 100.0f, halfHeight - 180.0f}); // 回調位置，釋放遊戲空間
     m_DonkeyKong->SetZIndex(50); // 可選：調整圖層順序
     m_DonkeyKong->SetScale({m_Mario->marioScale/1.5f, m_Mario->marioScale/1.5f});
 #if 1 //TODO
@@ -73,6 +83,9 @@ void App::Start() {
     });
 #endif
     m_Renderer.AddChild(m_DonkeyKong);
+
+    // 將 Donkey Kong 的邊界資訊傳遞給 Mario
+    m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
 
     // 設定 App 物件初始狀態為 UPDATE，開始遊戲主迴圈
     m_CurrentState = State::UPDATE;
@@ -156,6 +169,7 @@ void App::Update() {
                     LOG_DEBUG("BARREL DESTROYED BY HAMMER!");
                     m_Renderer.RemoveChild(barrel); // 從渲染器移除
                     it = m_Barrels.erase(it);       // 從清單移除
+                    m_HUDText->AddScore(500);
                     continue;                       // 跳過後續處理，直接檢查下一個酒桶
                 } else {
                     m_Mario->Dead();                // Mario 死亡
@@ -175,6 +189,9 @@ void App::Update() {
             }
         }
 #endif
+        // 在處理 Mario 的移動邏輯之前，先更新 Donkey Kong 的邊界資訊給 Mario
+        m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
+
         // 3. 處理 Mario 輸入
         if ((m_Mario->GetState() != MarioState::JUMPING)
             && (m_Mario->GetState() != MarioState::CLIMBING)
@@ -243,6 +260,7 @@ void App::Update() {
                 if (m_Mario->GetState() == MarioState::HAMMERING) {
                     LOG_DEBUG("FIREBALL DESTROYED BY HAMMER!");
                     m_Fireball->SetVisible(false);
+                m_HUDText->AddScore(800);
                 } else {
                     m_Mario->Dead();
                 }
@@ -254,6 +272,12 @@ void App::Update() {
             if (m_HammerItem->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
                 m_Mario->WaitForHammer();
                 m_HammerItem->SetVisible(false);
+            }
+        }
+        if (m_HammerItem2 && m_HammerItem2->GetVisibility() && m_Mario->GetState() == MarioState::JUMPING) {
+            if (m_HammerItem2->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                m_Mario->WaitForHammer();
+                m_HammerItem2->SetVisible(false);
             }
         }
 

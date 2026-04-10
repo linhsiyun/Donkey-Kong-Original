@@ -90,7 +90,8 @@ void Barrel::Update() {
 }
 
 bool Barrel::IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const {
-    const auto self_half_size = GetSize() / 2.0f;
+    const float collisionFactor = 0.7f; // 調整此值以縮小碰撞範圍，例如 0.7 代表 70% 的原始尺寸
+    const auto self_half_size = (GetSize() * collisionFactor) / 2.0f;
     const auto other_half_size = otherSize / 2.0f;
     const auto& self_pos = GetPosition();
 

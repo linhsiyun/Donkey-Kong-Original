@@ -2,10 +2,12 @@
 #define HUDMANAGER_HPP
 
 #include <memory>
+#include <vector>
 #include "Util/Text.hpp"
 #include "Util/Color.hpp"
 #include "Util/GameObject.hpp"
 #include "Util/Renderer.hpp"
+#include "Character.hpp"
 
 /* 計分規則:
   1. 跳躍得分 (Jumping)
@@ -57,6 +59,19 @@ private:
 
     std::shared_ptr<Util::Text> levelText;
     std::shared_ptr<Util::GameObject> levelObject;
+
+    // 用於顯示生命值的圖示清單
+    std::vector<std::shared_ptr<Util::GameObject>> lifeObjects;
+
+    // 新增：槌子圖示與計數
+    std::shared_ptr<Character> hammerIcon;
+    std::shared_ptr<Util::Text> hammerCountText;
+    std::shared_ptr<Util::GameObject> hammerCountObject;
+
+    // 新增：木桶圖示與計數
+    std::shared_ptr<Character> barrelIcon;
+    std::shared_ptr<Util::Text> barrelCountText;
+    std::shared_ptr<Util::GameObject> barrelCountObject;
 
     float bonusTimer = 0.0f; // 用來計時 1 秒扣一次分數
 
