@@ -7,6 +7,17 @@
 
 #include "Util/GameObject.hpp"
 
+//#include "Character.hpp"
+//not used, #include "Util/Text.hpp"
+//not used, #include "PhaseResourceManger.hpp"
+//#include "AnimatedCharacter.hpp"
+
+#include "Mario.hpp"
+#include "Fiamma.hpp"
+#include "HUDManager.hpp"
+#include "DonkeyKong.hpp"
+#include "Barrel.hpp"
+
 class App {
 public:
     enum class State {
@@ -25,6 +36,10 @@ public:
 
 private:
     void ValidTask();
+
+    // 新增：將原本在 lambda 裡面的木桶生成邏輯抽出來變成 App 的成員函式
+    void SpawnBarrel();
+
     Util::Renderer m_Renderer;
     std::shared_ptr<Map> m_Map;
 
@@ -32,6 +47,16 @@ private:
 
 private:
     State m_CurrentState = State::START;
+
+    //void ShowMario(void);
+    std::shared_ptr<Mario> m_Mario;
+    std::shared_ptr<Fiamma> m_Fireball;
+    std::shared_ptr<HUDManager> m_HUDText;
+    std::shared_ptr<DonkeyKong> m_DonkeyKong;
+    std::vector<std::shared_ptr<Barrel>> m_Barrels; // 儲存所有畫面上的酒桶
+
+    float halfWidth;
+    float halfHeight;
 };
 
 #endif

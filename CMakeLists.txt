@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(REPLACE_WITH_YOUR_PROJECT_NAME)
+project(Donkey_Kong)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -15,7 +15,7 @@ FetchContent_Declare(
 
     # Or alternatively if you want to use a specific git commit instead of a release:
     # GIT_REPOSITORY  https://github.com/ntut-open-source-club/practical-tools-for-simple-design.git
-    # GIT_TAG         <git_tag>
+    # GIT_TAG         main # Use the main branch for the latest updates
 
     SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/PTSD
 )
