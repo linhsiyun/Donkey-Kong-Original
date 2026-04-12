@@ -4,6 +4,7 @@
 #include "config.hpp"
 #include <cmath>
 #include <algorithm>// 【新增】引入 cmath 以使用 std::floor
+#include "Setting.hpp"
 
 Map::Map(const std::string& imagePath, const std::string& txtPath) {
     // 設定地圖的視覺 (掛載整張大圖)
@@ -64,8 +65,13 @@ void Map::AutoScale() {
     glm::vec2 imageSize = m_Drawable->GetSize();
 
     // 分別計算 X 軸與 Y 軸需要放大的倍率
+#if VSCODE
+    float scaleX = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / imageSize.x;
+    float scaleY = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / imageSize.y;
+#else
     float scaleX = static_cast<float>(WINDOW_WIDTH) / imageSize.x;
     float scaleY = static_cast<float>(WINDOW_HEIGHT) / imageSize.y;
+#endif    
 
     // 使用 std::min 會讓整張圖「完整塞進」視窗 (維持比例，但可能會留黑邊)
     // 如果你希望圖片「填滿」整個視窗 (維持比例，但不留黑邊，超出視窗的部分會被裁切掉)，請把 min 改成 max

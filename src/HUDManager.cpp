@@ -3,6 +3,7 @@
 #include <sstream>
 #include "Character.hpp"
 #include "config.hpp"
+#include "Setting.hpp"
 
 static std::string FormatInt(int score, int width) {
     std::ostringstream ss;
@@ -12,9 +13,13 @@ static std::string FormatInt(int score, int width) {
 
 HUDManager::HUDManager() {
     // 透過 PTSD_Config 取得視窗大小
+#if VSCODE
+    float halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
+    float halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
+#else    
     float halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
     float halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
-
+#endif
     // --- 這裡只設定一次 ---
     const std::string fontPath = RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf";
     //const int fontSize = 16;

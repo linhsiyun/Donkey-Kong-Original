@@ -6,6 +6,7 @@
 #include "Util/Time.hpp"
 #include "Util/Logger.hpp"
 #include "config.hpp"
+#include "Setting.hpp"
 
 // 地面上的槌子道具物件
 static std::shared_ptr<Character> m_HammerItem;
@@ -26,8 +27,13 @@ void App::Start() {
     */
 
     // 透過 PTSD_Config 取得視窗大小
+#if VSCODE
+    halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
+    halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
+#else
     halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
     halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
+#endif    
     LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
 
 
