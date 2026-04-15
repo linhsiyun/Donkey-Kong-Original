@@ -17,18 +17,11 @@ void App::Start() {
     m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
     m_Renderer.AddChild(m_Map);
 
-    /*測試用
-    m_TestMarker = std::make_shared<Util::GameObject>();
-    m_TestMarker->SetDrawable(std::make_shared<Util::Image>("../Resources/Images/fiamma2.png"));
-    m_TestMarker->SetZIndex(5.0f); // 確保游標顯示在地圖上方
-    m_Renderer.AddChild(m_TestMarker);
-    */
-
-    // 透過 PTSD_Config 取得視窗大小
-    halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
-    halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
-    LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
-
+    //取得地圖的實際縮放後大小
+    glm::vec2 mapSize = m_Map->GetScaledSize();
+    halfWidth = mapSize.x / 2.0f;
+    halfHeight = mapSize.y / 2.0f;
+    LOG_INFO("Map halfWidth: {}, Map halfHeight: {}", halfWidth, halfHeight);
 
     // 初始化 Mario 物件，並設定初始位置
     m_Mario = std::make_shared<Mario>();

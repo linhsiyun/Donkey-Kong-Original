@@ -20,30 +20,27 @@ Map::Map(const std::string& imagePath, const std::string& txtPath) {
 
 // 新增實作座標轉換
 TileType Map::GetTileAtPosition(float worldX, float worldY) const {
-    // 1. 取得地圖目前的縮放比例
-    float scaleX = std::abs(GetTransform().scale.x);
-    float scaleY = std::abs(GetTransform().scale.y);
+    // 1. 取得目前的縮放比例 (假設是等比例縮放)
+    float scale = m_Transform.scale.x;
 
-    // 2. 將原始的單格大小乘上縮放倍率，得到「畫面上真實的格子像素大小」
-    float actualTileWidth = TILE_WIDTH * scaleX;
-    float actualTileHeight = TILE_HEIGHT * scaleY;
-
-    // 3. 取得地圖放大後的整體寬高
-    float mapPixelWidth = m_LevelData.GetWidth() * actualTileWidth;
-    float mapPixelHeight = m_LevelData.GetHeight() * actualTileHeight;
+    // 2. 計算「縮放後」的地圖實際總寬高 (像素)
+    float mapPixelWidth = m_LevelData.GetWidth() * TILE_WIDTH * scale;
+    float mapPixelHeight = m_LevelData.GetHeight() * TILE_HEIGHT * scale;
 
     float mapCenterX = GetTransform().translation.x;
     float mapCenterY = GetTransform().translation.y;
 
+    // 3. 算出地圖左上角的真實座標
     float mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
     float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
 
+    // 4. 計算滑鼠相對於地圖左上角的距離
     float localX = worldX - mapTopLeftX;
     float localY = mapTopLeftY - worldY;
 
-    // 4. 【關鍵】使用縮放後的實際大小 (actualTileWidth) 來進行除法計算
-    int gridX = static_cast<int>(std::floor(localX / actualTileWidth));
-    int gridY = static_cast<int>(std::floor(localY / actualTileHeight));
+    // 5. 關鍵：除以「縮放後」的單格大小
+    int gridX = static_cast<int>(std::floor(localX / (TILE_WIDTH * scale)));
+    int gridY = static_cast<int>(std::floor(localY / (TILE_HEIGHT * scale)));
 
     return m_LevelData.GetTile(gridX, gridY);
 }
