@@ -71,3 +71,26 @@ void Map::AutoScale() {
     m_Transform.scale = {finalScale, finalScale};
     LOG_INFO("地圖自動縮放比例為: {}", finalScale);
 }
+
+// Map.cpp
+glm::vec2 Map::GetWorldPosition(float absX, float absY) const {
+    // 1. 取得目前地圖的縮放比例
+    float scale = m_Transform.scale.x;
+
+    // 2. 計算地圖的真實長寬
+    float mapPixelWidth = m_LevelData.GetWidth() * TILE_WIDTH * scale;
+    float mapPixelHeight = m_LevelData.GetHeight() * TILE_HEIGHT * scale;
+
+    float mapCenterX = GetTransform().translation.x;
+    float mapCenterY = GetTransform().translation.y;
+
+    // 3. 算出地圖左上角的真實世界座標
+    float mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
+    float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+
+    // 4. 套用絕對座標：X 向右加，Y 向下減 (因為引擎的 Y 軸是往上增長的)
+    return {
+        mapTopLeftX + absX,
+        mapTopLeftY - absY
+    };
+}

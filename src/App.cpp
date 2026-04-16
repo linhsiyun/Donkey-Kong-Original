@@ -23,9 +23,11 @@ void App::Start() {
     halfHeight = mapSize.y / 2.0f;
     LOG_INFO("Map halfWidth: {}, Map halfHeight: {}", halfWidth, halfHeight);
 
-    // 初始化 Mario 物件，並設定初始位置
+    // 初始化 Mario 物件
     m_Mario = std::make_shared<Mario>();
-    m_Mario->SetPosition({-halfWidth + 100.0f, -halfHeight + 100.0f});
+    // 將 Mario 精準放在地圖絕對座標 (100, 100) 的位置
+    glm::vec2 marioStartPos = m_Map->GetWorldPosition(100.0f, 630.0f);
+    m_Mario->SetPosition(marioStartPos);
 
     // 把 Mario 裡面所有的圖層一口氣加進 App 的Renderer中
     m_Mario->AddToRenderer(m_Renderer);
@@ -178,7 +180,7 @@ void App::Update() {
 
         // 2. 根據狀態執行邏輯
         if (m_Mario->IsJumping()) {
-            m_Mario->Jump();
+            m_Mario->JumpStart();
         }
         // 3. 一般移動邏輯
         else {
@@ -255,7 +257,11 @@ void App::Update() {
     }
 
     // 即使遊戲結束，Mario 的動畫更新 (例如 Win 動畫) 與 Renderer 仍需持續運行
-    m_Mario->Update();
+    // 取得目前的 DeltaTime (時間差)
+    float dt = Util::Time::GetDeltaTimeMs();
+
+    // 將時間與地圖指標傳給 Mario 進行物理與動畫更新
+    m_Mario->Update(dt, m_Map);
     m_Renderer.Update();
 
 

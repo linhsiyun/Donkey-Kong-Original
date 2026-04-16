@@ -25,6 +25,10 @@ public:
     // 用來在遊戲途中切換地圖的 API
     void LoadNewMap(const std::string& imagePath, const std::string& txtPath);
 
+    // 輸入：以地圖左上角為 (0,0) 的絕對座標
+    // 輸出：轉換給引擎 GameObject 使用的世界座標 (中心點為 0,0)
+    glm::vec2 GetWorldPosition(float absX, float absY) const;
+
 private:
     LevelData m_LevelData;
     void AutoScale();
