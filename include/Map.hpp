@@ -9,10 +9,6 @@
 
 class Map : public Util::GameObject {
 public:
-    // 假設地圖上一格是 117x120 像素 (你可以依照你的真實圖片比例修改)
-    static constexpr float TILE_WIDTH = 117.0f;
-    static constexpr float TILE_HEIGHT = 120.0f;
-
     // 建構子同時接收「圖片路徑」與「TXT路徑」
     Map(const std::string& imagePath, const std::string& txtPath);
 
@@ -28,6 +24,11 @@ public:
 private:
     LevelData m_LevelData;
     void AutoScale();
+    
+    float actualTileWidth;
+    float actualTileHeight;
+    float mapTopLeftX;
+    float mapTopLeftY;    
 };
 
 #endif // MAP_HPP

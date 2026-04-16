@@ -17,32 +17,43 @@ Map::Map(const std::string& imagePath, const std::string& txtPath) {
     m_LevelData.LoadFromFile(txtPath);
     AutoScale();
 
-}
-
-// 新增實作座標轉換
-TileType Map::GetTileAtPosition(float worldX, float worldY) const {
-    // 1. 取得地圖目前的縮放比例
+    // 1. 取得地圖目前的縮放比例與原始圖片大小
     float scaleX = std::abs(GetTransform().scale.x);
     float scaleY = std::abs(GetTransform().scale.y);
+    glm::vec2 imageSize = m_Drawable->GetSize();
 
-    // 2. 將原始的單格大小乘上縮放倍率，得到「畫面上真實的格子像素大小」
-    float actualTileWidth = TILE_WIDTH * scaleX;
-    float actualTileHeight = TILE_HEIGHT * scaleY;
+    // 2. 將原始圖片大小乘上縮放倍率，得到「整張地圖在畫面上真實的像素長寬」
+    float mapPixelWidth = imageSize.x * scaleX;
+    float mapPixelHeight = imageSize.y * scaleY;
+    LOG_INFO("  mapPixel: ({},{})", mapPixelWidth, mapPixelHeight);
 
-    // 3. 取得地圖放大後的整體寬高
-    float mapPixelWidth = m_LevelData.GetWidth() * actualTileWidth;
-    float mapPixelHeight = m_LevelData.GetHeight() * actualTileHeight;
+    // 3. 【動態連動】計算單一格子的實際寬高
+    //    公式：地圖實際顯示寬度 / TXT 網格的行數 = 單一格子的動態寬度
+    actualTileWidth = mapPixelWidth / m_LevelData.GetWidth();
+    actualTileHeight = mapPixelHeight / m_LevelData.GetHeight();
+    LOG_INFO("actualTile: ({},{})", actualTileWidth, actualTileHeight);
 
     float mapCenterX = GetTransform().translation.x;
     float mapCenterY = GetTransform().translation.y;
 
-    float mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
-    float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+    // 定位出地圖圖片的左上角座標
+    mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
+    mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+    LOG_INFO(" mapTopLeft: ({},{})", mapTopLeftX, mapTopLeftY);
+}
 
+// 新增實作座標轉換
+TileType Map::GetTileAtPosition(float worldX, float worldY) const {
+    // 預防讀取空的地圖資料而導致除以零
+    if (m_LevelData.GetWidth() == 0 || m_LevelData.GetHeight() == 0) {
+        return TileType::EMPTY;
+    }
+
+    // 計算角色的座標相對於地圖左上角的相對距離
     float localX = worldX - mapTopLeftX;
     float localY = mapTopLeftY - worldY;
 
-    // 4. 【關鍵】使用縮放後的實際大小 (actualTileWidth) 來進行除法計算
+    // 4. 使用最新算出的動態網格大小來換算角色目前踩在第幾格（Index）
     int gridX = static_cast<int>(std::floor(localX / actualTileWidth));
     int gridY = static_cast<int>(std::floor(localY / actualTileHeight));
 
@@ -71,7 +82,7 @@ void Map::AutoScale() {
 #else
     float scaleX = static_cast<float>(WINDOW_WIDTH) / imageSize.x;
     float scaleY = static_cast<float>(WINDOW_HEIGHT) / imageSize.y;
-#endif    
+#endif
 
     // 使用 std::min 會讓整張圖「完整塞進」視窗 (維持比例，但可能會留黑邊)
     // 如果你希望圖片「填滿」整個視窗 (維持比例，但不留黑邊，超出視窗的部分會被裁切掉)，請把 min 改成 max
