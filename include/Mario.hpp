@@ -5,6 +5,7 @@
 #include "Util/Renderer.hpp"
 #include "Character.hpp"
 #include "AnimatedCharacter.hpp"
+#include "Map.hpp"
 
 // Mario 的狀態列舉，定義了 Mario 在遊戲中可能的各種行為狀態
 enum class MarioState {
@@ -41,8 +42,8 @@ public:
 
     // 每幀更新：給 App的Update 呼叫
     // 根據 CurrentState 來決定誰該顯示 (Visible)、是否播放/停止動畫 (Play/Stop)、以及其他邏輯處理
-    void Update();
-
+    // 將 Update 修改為接收 Map 的指標
+    void Update(float deltaTime, const std::shared_ptr<Map>& map);
     // 統一設定座標，並同步給內部的所有圖層
     void SetPosition(const glm::vec2& position);
 
@@ -81,7 +82,7 @@ public:
     void SetScreenBounds(float halfWidth, float halfHeight);
 
     const float marioScale = 2.5F;  // Mario 的縮放比例
-    const float movingStep = 2.0F;  // 走路與跳躍速度
+    const float movingStep = 2.0F;  // 走路速度
     const float climbingStep = 1.0F; // 攀爬速度
     bool IsJumping() const { return m_IsJumping; }
 
@@ -113,6 +114,10 @@ private:
     bool m_WaitForHammer = false;
 
     glm::vec2 m_JumpStartPosition;
+
+    float m_VelocityY = 0.0f;           // Y 軸的速度 (正: 上升, 負: 下降)
+    const float m_Gravity = 1000.0f;    // 重力加速度 (數字可依手感調整)
+    const float m_JumpForce = 500.0f;   // 跳躍的初始力量
 
     glm::vec2 m_DonkeyKongPos = {0.0f, 0.0f}; // Donkey Kong 的位置
     glm::vec2 m_DonkeyKongSize = {0.0f, 0.0f}; // Donkey Kong 的尺寸

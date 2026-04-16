@@ -20,30 +20,17 @@ void App::Start() {
     m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
     m_Renderer.AddChild(m_Map);
 
-    /*測試用
-    m_TestMarker = std::make_shared<Util::GameObject>();
-    m_TestMarker->SetDrawable(std::make_shared<Util::Image>("../Resources/Images/fiamma2.png"));
-    m_TestMarker->SetZIndex(5.0f); // 確保游標顯示在地圖上方
-    m_Renderer.AddChild(m_TestMarker);
-    */
+    //取得地圖的實際縮放後大小
+    glm::vec2 mapSize = m_Map->GetScaledSize();
+    halfWidth = mapSize.x / 2.0f;
+    halfHeight = mapSize.y / 2.0f;
+    LOG_INFO("Map halfWidth: {}, Map halfHeight: {}", halfWidth, halfHeight);
 
-    // 透過 PTSD_Config 取得視窗大小
-#if VSCODE
-    halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
-    halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
-#else
-    halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
-    halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
-#endif
-    LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
-
-
-    // 初始化 Mario 物件，並設定初始位置
+    // 初始化 Mario 物件
     m_Mario = std::make_shared<Mario>();
-    m_Mario->SetPosition({-halfWidth + 150.0f, -halfHeight + 50.0f});
-
-    // 設定螢幕邊界，讓 Mario 的 Update 邏輯可以進行限制
-    m_Mario->SetScreenBounds(halfWidth, halfHeight);
+    // 將 Mario 精準放在地圖絕對座標 (100, 100) 的位置
+    glm::vec2 marioStartPos = m_Map->GetWorldPosition(100.0f, 630.0f);
+    m_Mario->SetPosition(marioStartPos);
 
     // 把 Mario 裡面所有的圖層一口氣加進 App 的Renderer中
     m_Mario->AddToRenderer(m_Renderer);
@@ -233,7 +220,7 @@ void App::Update() {
 
         // 2. 根據狀態執行邏輯
         if (m_Mario->IsJumping()) {
-            m_Mario->Jump();
+            m_Mario->JumpStart();
         }
         // 3. 一般移動邏輯
         else {
@@ -254,7 +241,7 @@ void App::Update() {
             // 檢測腳底中心點下方是否有地板 (放寬偵測範圍至 8 像素以增加穩定性)
             float footY = marioPos.y - (marioSize.y / 2.0f);
             bool onFloor = (m_Map->GetTileAtPosition(marioPos.x, footY - 4.0f) == TileType::FLOOR);
-#if 1 //sdbg     
+#if 1 //sdbg
             if (onFloor) LOG_DEBUG("onFloor");
 #endif
             // 如果在地面上且處於走路或靜止狀態，修正 Y 座標以貼合地面
@@ -264,9 +251,9 @@ void App::Update() {
                 //float snappedFootY = std::round(footY / 8.0f) * 8.0f;
                 float snappedFootY = std::round(footY / 15.0f) * 15.0f;
                 m_Mario->SetPosition({marioPos.x, snappedFootY + (marioSize.y / 2.0f)});
-                
+
                 // 更新局部變數，確保下方的 Walk 邏輯使用的是修正後的位置
-                marioPos = m_Mario->GetPosition();               
+                marioPos = m_Mario->GetPosition();
             }
 
             bool isClimbing = (state == MarioState::CLIMBING || state == MarioState::CLIMB_IDLE);
@@ -352,7 +339,11 @@ void App::Update() {
     }
 
     // 即使遊戲結束，Mario 的動畫更新 (例如 Win 動畫) 與 Renderer 仍需持續運行
-    m_Mario->Update();
+    // 取得目前的 DeltaTime (時間差)
+    float dt = Util::Time::GetDeltaTimeMs();
+
+    // 將時間與地圖指標傳給 Mario 進行物理與動畫更新
+    m_Mario->Update(dt, m_Map);
     m_Renderer.Update();
 
 
