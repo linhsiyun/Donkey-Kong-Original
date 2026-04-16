@@ -277,27 +277,20 @@ void Mario::Win() {
 // void Update(float deltaTime, const std::shared_ptr<Map>& map);
 
 void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
-
     // ==========================================
     // 1. 物理與座標運算 (Physics & Movement)
     // ==========================================
-    glm::vec2 pos = GetPosition(); // 從底層取得當前座標
+    //在任何移動發生前，先記住「上一幀」的座標
+    glm::vec2 prevPos = GetPosition();// 從底層取得當前座標
+    glm::vec2 pos = prevPos;
 
     // 如果在空中，套用重力與水平拋物線移動
     if (m_CurrentState == MarioState::JUMPING || m_CurrentState == MarioState::FALLING) {
 
-        // Y 軸：受重力影響遞減
         m_VelocityY -= m_Gravity * (deltaTime / 1000.0f);
         pos.y += m_VelocityY * (deltaTime / 1000.0f);
+        // ... (省略水平 X 軸移動邏輯) ...
 
-        // X 軸：依照 JumpStart 決定的方向，進行水平飛行
-        if (m_Direction == MarioDIR::LEFT) {
-            pos.x -= movingStep;
-        } else if (m_Direction == MarioDIR::RIGHT) {
-            pos.x += movingStep;
-        }
-
-        // 單向平台地面碰撞偵測 (只有往下掉時才檢查)
         if (m_VelocityY < 0.0f && map != nullptr) {
             float footY = pos.y - (GetSize().y / 2.0f);
             float centerX = pos.x;
@@ -305,11 +298,23 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
             TileType footTile = map->GetTileAtPosition(centerX, footY);
 
             if (footTile == TileType::FLOOR) {
-                m_VelocityY = 0.0f; // 踩到地板，速度歸零
+                float surfaceY = map->GetGridSurfaceY(footY);
 
-                SetState(MarioState::IDLE);
-                m_Direction = m_BackupDirection; // 落地後恢復原本面向
-                m_IsJumping = false;             // 允許再次跳躍
+                // ==========================================
+                // [核心修正] 檢查上一幀的腳底位置 (oldFootY)
+                // ==========================================
+                float oldFootY = prevPos.y - (GetSize().y / 2.0f);
+
+                // 只有當「上一幀腳還在表面之上(或剛好貼齊)」，才算成功著陸！
+                // 如果 oldFootY 已經小於 surfaceY，代表他是在地板「內部」開始往下掉的，必須讓他直接穿過去！
+                if (oldFootY >= surfaceY) {
+                    m_VelocityY = 0.0f;
+                    pos.y = surfaceY + (GetSize().y / 2.0f) + 0.1f;
+
+                    SetState(MarioState::IDLE);
+                    m_Direction = m_BackupDirection;
+                    m_IsJumping = false;
+                }
             }
         }
     }

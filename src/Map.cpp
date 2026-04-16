@@ -94,3 +94,22 @@ glm::vec2 Map::GetWorldPosition(float absX, float absY) const {
         mapTopLeftY - absY
     };
 }
+
+float Map::GetGridSurfaceY(float worldY) const {
+    float scale = m_Transform.scale.x;
+
+    // 計算地圖真實高度與左上角的 Y 座標
+    float mapPixelHeight = m_LevelData.GetHeight() * TILE_HEIGHT * scale;
+    float mapCenterY = GetTransform().translation.y;
+    float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+
+    // 計算傳入的 Y 距離地圖頂端有多遠
+    float localY = mapTopLeftY - worldY;
+
+    // 算出這是在第幾列 (gridY)
+    int gridY = static_cast<int>(std::floor(localY / (TILE_HEIGHT * scale)));
+
+    // 關鍵：反推該列「最頂端表面」的世界座標
+    // 因為引擎的 Y 軸是往上為正，所以從 TopLeftY 往下扣除 (gridY 個格子的高度)
+    return mapTopLeftY - (gridY * TILE_HEIGHT * scale);
+}

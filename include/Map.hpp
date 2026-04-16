@@ -29,6 +29,9 @@ public:
     // 輸出：轉換給引擎 GameObject 使用的世界座標 (中心點為 0,0)
     glm::vec2 GetWorldPosition(float absX, float absY) const;
 
+    // 給定一個世界 Y 座標，回傳該位置所屬網格的「頂端表面」世界 Y 座標
+    float GetGridSurfaceY(float worldY) const;
+
 private:
     LevelData m_LevelData;
     void AutoScale();

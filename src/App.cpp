@@ -14,7 +14,7 @@ void App::Start() {
     LOG_TRACE("Start");
 
     // 初始化地圖，並加入到 Renderer 渲染清單中
-    m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
+    m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map2.txt");
     m_Renderer.AddChild(m_Map);
 
     //取得地圖的實際縮放後大小
