@@ -26,8 +26,8 @@
 
 class DonkeyKong : public AnimatedCharacter {
 public:
-    // 步驟一：定義建構子，接收多張圖的路徑 (DK1 到 DK5)
-    explicit DonkeyKong(const std::vector<std::string>& AnimationPaths);
+    // 步驟一：定義建構子，初始化內部的動畫圖層
+    DonkeyKong();
 
     // 步驟二：更新 DK 狀態 (根據時間改變動畫與觸發事件)
     void Update();

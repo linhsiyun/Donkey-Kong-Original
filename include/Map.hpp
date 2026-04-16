@@ -35,6 +35,11 @@ public:
 private:
     LevelData m_LevelData;
     void AutoScale();
+
+    float actualTileWidth;
+    float actualTileHeight;
+    float mapTopLeftX;
+    float mapTopLeftY;
 };
 
 #endif // MAP_HPP

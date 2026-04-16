@@ -4,10 +4,17 @@
 
 // =============================================
 // 建構子：接收圖片路徑並初始化初始狀態
+// 初始化酒桶的圖片序列 (Barrel1.png ~ Barrel6.png)
 // =============================================
-Barrel::Barrel(const std::vector<std::string>& AnimationPaths)
-    : AnimatedCharacter(AnimationPaths) {
-
+Barrel::Barrel()
+    : AnimatedCharacter({
+          RESOURCE_DIR"/Images/Barrel1.png",
+          RESOURCE_DIR"/Images/Barrel2.png",
+          RESOURCE_DIR"/Images/Barrel3.png",
+          RESOURCE_DIR"/Images/Barrel4.png",
+          RESOURCE_DIR"/Images/Barrel5.png",
+          RESOURCE_DIR"/Images/Barrel6.png"
+      }) {
     // 步驟一：停止父類別預設的自動播放，我們要自己根據方向與狀態來控制圖片的切換
     Stop();
 
@@ -68,6 +75,11 @@ void Barrel::Update() {
         // --- 狀態 2：往下掉落 (邊緣落下或爬梯子掉落) ---
 
         // 1. 位置更新 (往下移動，Y 軸可能依據引擎座標系為減小或增加，這裡假設 Y 往下變小)
+        if (m_Direction == Direction::RIGHT) {
+            currentPos.x += m_MoveSpeed * dtSec;
+        } else {
+            currentPos.x -= m_MoveSpeed * dtSec;
+        }        
         currentPos.y -= m_FallSpeed * dtSec;
 
         // 2. 動畫更新 (掉落中的兩張圖片：索引 4 與 5)
@@ -90,7 +102,8 @@ void Barrel::Update() {
 }
 
 bool Barrel::IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const {
-    const auto self_half_size = GetSize() / 2.0f;
+    const float collisionFactor = 0.7f; // 調整此值以縮小碰撞範圍，例如 0.7 代表 70% 的原始尺寸
+    const auto self_half_size = (GetSize() * collisionFactor) / 2.0f;
     const auto other_half_size = otherSize / 2.0f;
     const auto& self_pos = GetPosition();
 

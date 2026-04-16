@@ -37,8 +37,8 @@ public:
         FALLING_EDGE    // 從平台邊緣垂直落下
     };
 
-    // 步驟一：定義建構子，接收多張圖的路徑 (Barrel.png 到 Barrel6.png)
-    explicit Barrel(const std::vector<std::string>& AnimationPaths);
+    // 步驟一：定義建構子，內部初始化酒桶所有動畫圖層
+    Barrel();
 
     // 步驟二：更新酒桶狀態 (處理位置移動與動畫幀的切換)
     void Update();
@@ -63,8 +63,8 @@ private:
     Direction m_Direction = Direction::RIGHT; // 預設向右滾動
 
     // 速度設定
-    float m_MoveSpeed = 150.0f; // 水平滾動速度 (pixels/sec)
-    float m_FallSpeed = 200.0f; // 垂直掉落速度 (pixels/sec)
+    float m_MoveSpeed = 125.0f; // 水平滾動速度 (pixels/sec)
+    float m_FallSpeed = 300.0f; // 垂直掉落速度 (pixels/sec)
 
     // ===== 動畫與計時器區域 =====
     float m_AnimationTimer = 0.0f; // 控制圖片切換的計時器

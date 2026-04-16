@@ -67,11 +67,19 @@ public:
     void Climb(CLIMB_DIR dir);
     void ClimbIdle();
     void JumpStart(); // 這個函式專門負責觸發跳躍狀態，並初始化相關變數
+    void Jump();
+    void Fall();
     void WaitForHammer();
     void Hammer();
     void HammerIdle();
     void Dead();
     void Win();
+
+    // 設定 Donkey Kong 的邊界，Mario 不能移動到這個區域
+    void SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize);
+
+    // 設定螢幕邊界限制
+    void SetScreenBounds(float halfWidth, float halfHeight);
 
     const float marioScale = 2.5F;  // Mario 的縮放比例
     const float movingStep = 2.0F;  // 走路速度
@@ -94,6 +102,7 @@ private:
     // 狀態與邏輯變數也封裝進來
     MarioState m_CurrentState = MarioState::IDLE;
     glm::vec2 m_Position;
+    glm::vec2 m_LastPosition = {0.0f, 0.0f}; // 儲存上一個安全的位置
 
     MarioDIR m_Direction = MarioDIR::RIGHT;
     MarioDIR m_BackupDirection = MarioDIR::RIGHT; // for jump direction backup (when jump is vertical, use the last walking direction)
@@ -109,6 +118,12 @@ private:
     float m_VelocityY = 0.0f;           // Y 軸的速度 (正: 上升, 負: 下降)
     const float m_Gravity = 1000.0f;    // 重力加速度 (數字可依手感調整)
     const float m_JumpForce = 500.0f;   // 跳躍的初始力量
+
+    glm::vec2 m_DonkeyKongPos = {0.0f, 0.0f}; // Donkey Kong 的位置
+    glm::vec2 m_DonkeyKongSize = {0.0f, 0.0f}; // Donkey Kong 的尺寸
+
+    float m_ScreenHalfWidth = 0.0f;
+    float m_ScreenHalfHeight = 0.0f;
 };
 
 #endif // MARIO_HPP
