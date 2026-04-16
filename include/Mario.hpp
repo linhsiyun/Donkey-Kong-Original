@@ -74,6 +74,12 @@ public:
     void Dead();
     void Win();
 
+    // 設定 Donkey Kong 的邊界，Mario 不能移動到這個區域
+    void SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize);
+
+    // 設定螢幕邊界限制
+    void SetScreenBounds(float halfWidth, float halfHeight);
+
     const float marioScale = 2.5F;  // Mario 的縮放比例
     const float movingStep = 2.0F;  // 走路與跳躍速度
     const float climbingStep = 1.0F; // 攀爬速度
@@ -95,6 +101,7 @@ private:
     // 狀態與邏輯變數也封裝進來
     MarioState m_CurrentState = MarioState::IDLE;
     glm::vec2 m_Position;
+    glm::vec2 m_LastPosition = {0.0f, 0.0f}; // 儲存上一個安全的位置
 
     MarioDIR m_Direction = MarioDIR::RIGHT;
     MarioDIR m_BackupDirection = MarioDIR::RIGHT; // for jump direction backup (when jump is vertical, use the last walking direction)
@@ -106,6 +113,12 @@ private:
     bool m_WaitForHammer = false;
 
     glm::vec2 m_JumpStartPosition;
+
+    glm::vec2 m_DonkeyKongPos = {0.0f, 0.0f}; // Donkey Kong 的位置
+    glm::vec2 m_DonkeyKongSize = {0.0f, 0.0f}; // Donkey Kong 的尺寸
+
+    float m_ScreenHalfWidth = 0.0f;
+    float m_ScreenHalfHeight = 0.0f;
 };
 
 #endif // MARIO_HPP

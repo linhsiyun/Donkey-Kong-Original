@@ -5,23 +5,34 @@
 
 // =============================================
 // 建構子：接收圖片路徑並初始化初始狀態與計時
+// 初始化內部的圖片序列 (DK1.png ~ DK5.png)
 // =============================================
-DonkeyKong::DonkeyKong(const std::vector<std::string>& AnimationPaths)
-    : AnimatedCharacter(AnimationPaths) {
-
+DonkeyKong::DonkeyKong()
+    : AnimatedCharacter({
+          RESOURCE_DIR"/Images/DK1.png",
+          RESOURCE_DIR"/Images/DK2.png",
+          RESOURCE_DIR"/Images/DK3.png",
+          RESOURCE_DIR"/Images/DK4.png",
+          RESOURCE_DIR"/Images/DK5.png"
+      }) {
     // 步驟一：停止父類別預設的自動播放，我們將自己根據時間控制圖片切換
     Stop();
 
     // 步驟二：初始化，第一次進入「環顧狀態 (看左看右看前)」需要隨機搥胸多久
+#if 1 //sdbg
     m_NextLookTime = GetRandomChestBeatingDuration();
+#else    
+    m_NextLookTime = 1;
+#endif    
 }
 
 // =============================================
 // 輔助方法：隨機產生「這次需要搥胸多久才切換」
-// 回傳 1000 到 2000 的隨機毫秒 (1~2 秒)
+// 回傳 1000 到 5000 的隨機毫秒 (1~5 秒)
 // =============================================
 float DonkeyKong::GetRandomChestBeatingDuration() {
-    return 1000.0f + static_cast<float>(rand() % 1001);
+    //sdbg, return 1000.0f + static_cast<float>(rand() % 1001);
+    return 1000.0f + static_cast<float>(rand() % 4001);
 }
 
 // =============================================

@@ -5,6 +5,7 @@
 enum class TileType {
     EMPTY = 0,
     FLOOR = 1,
+    LADDER = 2,
 };
 
 #endif // TILE_TYPE_HPP
