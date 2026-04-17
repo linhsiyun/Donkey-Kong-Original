@@ -13,6 +13,56 @@
 static std::shared_ptr<Character> m_HammerItem;
 static std::shared_ptr<Character> m_HammerItem2;
 
+void App::LoadLevel(int level) {
+    m_CurrentLevel = level;
+
+    // 1. 根據傳入的關卡編號，載入對應的地圖圖片與純文字檔 (MapX.txt)
+    // 同時把所有物件 (Mario, 火球, 道具, 大金剛) 移動到該關卡適合的座標
+    if (m_CurrentLevel == 1) {
+        m_Map->LoadNewMap("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
+
+        // 第一關的各角色與道具初始位置
+        m_Mario->SetPosition({-halfWidth + 150.0f, -halfHeight + 50.0f});
+        m_Fireball->SetPosition({-100.0f, -70.0f});
+        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
+        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
+        m_DonkeyKong->SetPosition({-halfWidth + 180.0f, halfHeight - 100.0f});
+    } else if (m_CurrentLevel == 2) {
+        m_Map->LoadNewMap("../Resources/Images/board-conveyors.png", "../Resources/Maps/Map2.txt");
+
+        // 第二關的各角色與道具初始位置 (目前暫時設定與第一關相同，之後你可以自由調整這組座標)
+        m_Mario->SetPosition({-halfWidth + 150.0f, -halfHeight + 50.0f});
+        m_Fireball->SetPosition({-100.0f, -70.0f});
+        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
+        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
+        m_DonkeyKong->SetPosition({-halfWidth + 180.0f, halfHeight - 100.0f});    
+    } else if (m_CurrentLevel == 3) {
+        m_Map->LoadNewMap("../Resources/Images/board-elevators.png", "../Resources/Maps/Map3.txt");
+
+        //TODO
+    } else if (m_CurrentLevel == 4) {
+        m_Map->LoadNewMap("../Resources/Images/board-rivets.png", "../Resources/Maps/Map4.txt");
+
+        //TODO
+    }    
+
+    // 2. 清除畫面上現有的所有酒桶
+    for (auto& barrel : m_Barrels) {
+        m_Renderer.RemoveChild(barrel);
+    }
+    m_Barrels.clear();
+
+    // 3. 重置 Mario 以及其它遊戲角色的狀態
+    m_Mario->IDLE(); // 強制解除勝利狀態，回到預設的閒置
+    m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
+
+    // 4. 重置火球與道具狀態 (設定為可見)
+    m_Fireball->SetVisible(true);
+
+    if (m_HammerItem) m_HammerItem->SetVisible(true);
+    if (m_HammerItem2) m_HammerItem2->SetVisible(true);
+}
+
 void App::Start() {
     LOG_TRACE("Start");
 
@@ -38,9 +88,8 @@ void App::Start() {
     LOG_INFO("halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
 
 
-    // 初始化 Mario 物件，並設定初始位置
+    // 初始化 Mario 物件
     m_Mario = std::make_shared<Mario>();
-    m_Mario->SetPosition({-halfWidth + 150.0f, -halfHeight + 50.0f});
 
     // 設定螢幕邊界，讓 Mario 的 Update 邏輯可以進行限制
     m_Mario->SetScreenBounds(halfWidth, halfHeight);
@@ -50,18 +99,15 @@ void App::Start() {
 
     // 初始化火球物件
     m_Fireball = std::make_shared<Fiamma>();
-    m_Fireball->SetPosition({-100.0f, -70.0f}); // 設定火球初始位置
     m_Renderer.AddChild(m_Fireball);
 
     // 初始化地面上的槌子道具並放在右側
     m_HammerItem = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
-    m_HammerItem->SetPosition({150.0f, -120.5f});
     m_HammerItem->SetScale({m_Mario->marioScale, m_Mario->marioScale});
     m_Renderer.AddChild(m_HammerItem);
 
     // 初始化第二個槌子道具，放在靠近酒桶滾動的路徑上 (測試用)
     m_HammerItem2 = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
-    m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
     m_HammerItem2->SetScale({m_Mario->marioScale, m_Mario->marioScale});
     m_Renderer.AddChild(m_HammerItem2);
 
@@ -72,7 +118,6 @@ void App::Start() {
 
     // 初始化 DonkeyKong 物件
     m_DonkeyKong = std::make_shared<DonkeyKong>();
-    m_DonkeyKong->SetPosition({-halfWidth + 180.0f, halfHeight - 100.0f}); // 回調位置，釋放遊戲空間
     m_DonkeyKong->SetZIndex(50); // 可選：調整圖層順序
     m_DonkeyKong->SetScale({m_Mario->marioScale/1.5f, m_Mario->marioScale/1.5f});
 #if 1 //TODO
@@ -84,8 +129,8 @@ void App::Start() {
 #endif
     m_Renderer.AddChild(m_DonkeyKong);
 
-    // 將 Donkey Kong 的邊界資訊傳遞給 Mario
-    m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
+    // 載入當前關卡 (這會負責載入地圖、設定角色的初始位置與重置狀態，也處理 DonkeyKong 給 Mario 的邊界傳遞)
+    LoadLevel(m_CurrentLevel);
 
     // 設定 App 物件初始狀態為 UPDATE，開始遊戲主迴圈
     m_CurrentState = State::UPDATE;
@@ -135,10 +180,29 @@ void App::Update() {
         LOG_INFO("游標座標: ({}, {}), 對應 TXT 代號: {}", x, y, static_cast<int>(tile));
     }
     */
-    // 假設按下 Enter 鍵切換到第二張地圖測試
-    if (Util::Input::IsKeyDown(Util::Keycode::RETURN)) {
-        m_Map->LoadNewMap("../Resources/Images/board-conveyors.png", "../Resources/Maps/Map2.txt");
+#if 1  //sdbg: 按下 N 鍵切換到下一關測試, 按下 R 鍵 reset
+    if (Util::Input::IsKeyDown(Util::Keycode::N)) {
+        if (m_CurrentLevel != 4) {
+            m_CurrentLevel++;
+        } else {
+            m_CurrentLevel = 1;
+        }
+        LoadLevel(m_CurrentLevel);
     }
+    else if (Util::Input::IsKeyDown(Util::Keycode::R)) {
+        LoadLevel(m_CurrentLevel);
+    }
+#endif
+    // 當目前已經通關，並且處於勝利狀態時，我們讓玩家按下按鈕後可以自動進到下一關
+    if (marioState == MarioState::WIN) {
+        // 等待玩家按下任意前進按鈕 (例如跳躍鍵 SPACE 或 RETURN 鍵)
+        if (Util::Input::IsKeyDown(Util::Keycode::SPACE) || Util::Input::IsKeyDown(Util::Keycode::RETURN)) {
+            if (m_CurrentLevel == 1) {
+                LoadLevel(2);
+            }
+        }
+    }
+
     // 告訴渲染器，把所有 AddChild 進來的物件畫到畫面上 (包含你的地圖)
     if (isPlaying) {
 #if 1 //sdbg
@@ -254,7 +318,7 @@ void App::Update() {
             // 檢測腳底中心點下方是否有地板 (放寬偵測範圍至 8 像素以增加穩定性)
             float footY = marioPos.y - (marioSize.y / 2.0f);
             bool onFloor = (m_Map->GetTileAtPosition(marioPos.x, footY - 4.0f) == TileType::FLOOR);
-#if 1 //sdbg     
+#if 1 //sdbg
             if (onFloor) LOG_DEBUG("onFloor");
 #endif
             // 如果在地面上且處於走路或靜止狀態，修正 Y 座標以貼合地面
@@ -264,9 +328,9 @@ void App::Update() {
                 //float snappedFootY = std::round(footY / 8.0f) * 8.0f;
                 float snappedFootY = std::round(footY / 15.0f) * 15.0f;
                 m_Mario->SetPosition({marioPos.x, snappedFootY + (marioSize.y / 2.0f)});
-                
+
                 // 更新局部變數，確保下方的 Walk 邏輯使用的是修正後的位置
-                marioPos = m_Mario->GetPosition();               
+                marioPos = m_Mario->GetPosition();
             }
 
             bool isClimbing = (state == MarioState::CLIMBING || state == MarioState::CLIMB_IDLE);
