@@ -16,30 +16,7 @@ Map::Map(const std::string& imagePath, const std::string& txtPath) {
     // 載入地圖的邏輯陣列
     m_LevelData.LoadFromFile(txtPath);
     AutoScale();
-
-    // 1. 取得地圖目前的縮放比例與原始圖片大小
-    float scaleX = std::abs(GetTransform().scale.x);
-    float scaleY = std::abs(GetTransform().scale.y);
-    glm::vec2 imageSize = m_Drawable->GetSize();
-
-    // 2. 將原始圖片大小乘上縮放倍率，得到「整張地圖在畫面上真實的像素長寬」
-    float mapPixelWidth = imageSize.x * scaleX;
-    float mapPixelHeight = imageSize.y * scaleY;
-    LOG_INFO("  mapPixel: ({},{})", mapPixelWidth, mapPixelHeight);
-
-    // 3. 【動態連動】計算單一格子的實際寬高
-    //    公式：地圖實際顯示寬度 / TXT 網格的行數 = 單一格子的動態寬度
-    actualTileWidth = mapPixelWidth / m_LevelData.GetWidth();
-    actualTileHeight = mapPixelHeight / m_LevelData.GetHeight();
-    LOG_INFO("actualTile: ({},{})", actualTileWidth, actualTileHeight);
-
-    float mapCenterX = GetTransform().translation.x;
-    float mapCenterY = GetTransform().translation.y;
-
-    // 定位出地圖圖片的左上角座標
-    mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
-    mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
-    LOG_INFO(" mapTopLeft: ({},{})", mapTopLeftX, mapTopLeftY);
+    UpdateDimensions();
 }
 
 // 新增實作座標轉換
@@ -66,8 +43,35 @@ void Map::LoadNewMap(const std::string& imagePath, const std::string& txtPath) {
     // 重新載入新的 TXT 陣列
     m_LevelData.LoadFromFile(txtPath);
     AutoScale();
+    UpdateDimensions();
 
-    LOG_INFO("地圖已成功切換至: {}", imagePath);
+    LOG_INFO("map switches to: {}, {}", imagePath, txtPath);
+}
+
+void Map::UpdateDimensions() {
+    // 1. 取得地圖目前的縮放比例與原始圖片大小
+    float scaleX = std::abs(GetTransform().scale.x);
+    float scaleY = std::abs(GetTransform().scale.y);
+    glm::vec2 imageSize = m_Drawable->GetSize();
+
+    // 2. 將原始圖片大小乘上縮放倍率，得到「整張地圖在畫面上真實的像素長寬」
+    mapPixelWidth = imageSize.x * scaleX;
+    mapPixelHeight = imageSize.y * scaleY;
+    LOG_INFO("  mapPixel: ({},{})", mapPixelWidth, mapPixelHeight);
+
+    // 3. 【動態連動】計算單一格子的實際寬高
+    //    公式：地圖實際顯示寬度 / TXT 網格的行數 = 單一格子的動態寬度
+    actualTileWidth = mapPixelWidth / m_LevelData.GetWidth();
+    actualTileHeight = mapPixelHeight / m_LevelData.GetHeight();
+    LOG_INFO("actualTile: ({},{})", actualTileWidth, actualTileHeight);
+
+    float mapCenterX = GetTransform().translation.x;
+    float mapCenterY = GetTransform().translation.y;
+
+    // 定位出地圖圖片的左上角座標
+    mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
+    mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+    LOG_INFO(" mapTopLeft: ({},{})", mapTopLeftX, mapTopLeftY);
 }
 
 // 自動縮放邏輯
@@ -89,5 +93,5 @@ void Map::AutoScale() {
     float finalScale = std::min(scaleX, scaleY);
 
     m_Transform.scale = {finalScale, finalScale};
-    LOG_INFO("地圖自動縮放比例為: {}", finalScale);
+    LOG_INFO("map AutoScale: {}", finalScale);
 }

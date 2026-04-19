@@ -38,7 +38,7 @@ public:
     };
 
     // 步驟一：定義建構子，內部初始化酒桶所有動畫圖層
-    Barrel();
+    Barrel(State state, Direction dir);
 
     // 步驟二：更新酒桶狀態 (處理位置移動與動畫幀的切換)
     void Update();
@@ -59,8 +59,8 @@ public:
     [[nodiscard]] bool IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const;
 
 private:
-    State m_State = State::ROLLING;          // 預設為滾動狀態
-    Direction m_Direction = Direction::RIGHT; // 預設向右滾動
+    State m_State = State::ROLLING; // 預設為滾動狀態
+    Direction m_Direction;          // 滾動方向
 
     // 速度設定
     float m_MoveSpeed = 125.0f; // 水平滾動速度 (pixels/sec)

@@ -67,6 +67,7 @@ public:
     void ClimbIdle();
     void JumpStart(); // 這個函式專門負責觸發跳躍狀態，並初始化相關變數
     void Jump();
+    void Land(float floorY); // 新增：著地處理
     void Fall();
     void WaitForHammer();
     void Hammer();
@@ -84,6 +85,7 @@ public:
     const float movingStep = 2.0F;  // 走路與跳躍速度
     const float climbingStep = 1.0F; // 攀爬速度
     bool IsJumping() const { return m_IsJumping; }
+    float GetJumpTimer() const { return m_JumpTimer; } // 新增：取得跳躍計時器
 
 private:
     // 將所有動作圖層封裝在這裡：

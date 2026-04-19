@@ -21,14 +21,23 @@ public:
     // 用來在遊戲途中切換地圖的 API
     void LoadNewMap(const std::string& imagePath, const std::string& txtPath);
 
+    float GetMapWidth() const { return mapPixelWidth; }
+    float GetMapHeight() const { return mapPixelHeight; }
+
+    float GetTileWidth() const { return actualTileWidth; }
+    float GetTileHeight() const { return actualTileHeight; }
+
 private:
     LevelData m_LevelData;
     void AutoScale();
-    
+    void UpdateDimensions();
+
+    float mapPixelWidth = 0.0f;
+    float mapPixelHeight = 0.0f;
     float actualTileWidth;
     float actualTileHeight;
     float mapTopLeftX;
-    float mapTopLeftY;    
+    float mapTopLeftY;
 };
 
 #endif // MAP_HPP
