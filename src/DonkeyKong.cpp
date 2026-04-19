@@ -34,7 +34,7 @@ float DonkeyKong::GetRandomChestBeatingDuration() {
 #if 1 //sdbg
     return 1000.0f + static_cast<float>(rand() % 4001);
 #else
-    return 1000.0f + static_cast<float>(rand() % 1001);
+     return 1000.0f + static_cast<float>(rand() % 1001);
 #endif
 }
 

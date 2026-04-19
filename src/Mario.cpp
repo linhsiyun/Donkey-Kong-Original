@@ -203,40 +203,32 @@ void Mario::ClimbIdle() {
 }
 
 void Mario::JumpStart() {
-    // 確保只有在非跳躍狀態，且沒有拿槌子的時候才能起跳
     if (!m_IsJumping && m_CurrentState != MarioState::HAMMERING) {
         LOG_DEBUG("JUMPSTART");
-
         m_IsJumping = true;
-
-        // ==========================================
-        // [修改核心] 賦予向上的物理初速度
-        // (這兩行取代了舊的 m_JumpStartPosition 與 m_JumpTimer)
-        // ==========================================
-        m_VelocityY = m_JumpForce;
-
-        // 備份跳躍開始時的當前方向
-        m_BackupDirection = m_Direction;
+        m_JumpStartPosition = m_Position;
+        m_JumpTimer = 0.0f;
+        m_BackupDirection = m_Direction; // 跳躍開始時備份當前方向
         m_Direction = MarioDIR::NONE;    // 預設為垂直跳躍
 
         // 偵測是否同時按住左右鍵
         if (Util::Input::IsKeyPressed(Util::Keycode::RIGHT)) m_Direction = MarioDIR::RIGHT;
-        if (Util::Input::IsKeyPressed(Util::Keycode::LEFT))  m_Direction = MarioDIR::LEFT;
+        if (Util::Input::IsKeyPressed(Util::Keycode::LEFT)) m_Direction = MarioDIR::LEFT;
 
         // 如果是垂直跳躍，讓跳躍貼圖的面向跟隨目前 m_BackupDirection 的面向
-        if (m_Direction == MarioDIR::NONE) {
+        if (m_Direction == MarioDIR::NONE){
             if (m_BackupDirection == MarioDIR::LEFT) {
                 m_Jump->SetScale({marioScale, marioScale});
             }
             else {
-                m_Jump->SetScale({-marioScale, marioScale}); // 直接寫 -marioScale 即可
+                m_Jump->SetScale({-1*marioScale, marioScale});
             }
         }
         else if (m_Direction == MarioDIR::LEFT) {
-            m_Jump->SetScale({marioScale, marioScale});
+             m_Jump->SetScale({marioScale, marioScale});
         }
         else if (m_Direction == MarioDIR::RIGHT) {
-            m_Jump->SetScale({-marioScale, marioScale});
+             m_Jump->SetScale({-1*marioScale, marioScale});
         }
 
         SetState(MarioState::JUMPING);
@@ -326,59 +318,8 @@ void Mario::SetScreenBounds(float halfWidth, float halfHeight) {
     m_ScreenHalfHeight = halfHeight;
 }
 
-// 注意：標頭檔 (Mario.hpp) 記得要將 Update 改為接收這兩個參數
-// void Update(float deltaTime, const std::shared_ptr<Map>& map);
-
-void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
-    // ==========================================
-    // 1. 物理與座標運算 (Physics & Movement)
-    // ==========================================
-    //在任何移動發生前，先記住「上一幀」的座標
-    glm::vec2 prevPos = GetPosition();// 從底層取得當前座標
-    glm::vec2 pos = prevPos;
-
-    // 如果在空中，套用重力與水平拋物線移動
-    if (m_CurrentState == MarioState::JUMPING || m_CurrentState == MarioState::FALLING) {
-
-        m_VelocityY -= m_Gravity * (deltaTime / 1000.0f);
-        pos.y += m_VelocityY * (deltaTime / 1000.0f);
-        // ... (省略水平 X 軸移動邏輯) ...
-
-        if (m_VelocityY < 0.0f && map != nullptr) {
-            float footY = pos.y - (GetSize().y / 2.0f);
-            float centerX = pos.x;
-
-            TileType footTile = map->GetTileAtPosition(centerX, footY);
-
-            if (footTile == TileType::FLOOR) {
-                float surfaceY = map->GetGridSurfaceY(footY);
-
-                // ==========================================
-                // [核心修正] 檢查上一幀的腳底位置 (oldFootY)
-                // ==========================================
-                float oldFootY = prevPos.y - (GetSize().y / 2.0f);
-
-                // 只有當「上一幀腳還在表面之上(或剛好貼齊)」，才算成功著陸！
-                // 如果 oldFootY 已經小於 surfaceY，代表他是在地板「內部」開始往下掉的，必須讓他直接穿過去！
-                if (oldFootY >= surfaceY) {
-                    m_VelocityY = 0.0f;
-                    pos.y = surfaceY + (GetSize().y / 2.0f) + 0.1f;
-
-                    SetState(MarioState::IDLE);
-                    m_Direction = m_BackupDirection;
-                    m_IsJumping = false;
-                }
-            }
-        }
-    }
-
-    // 將物理引擎算好的新座標寫回物件
-    SetPosition(pos);
-    m_Position = pos; // 確保你原本自己維護的 m_Position 也同步更新
-
-    // ==========================================
-    // 2. 視覺與動畫圖層管理 (你原本寫好的完美邏輯)
-    // ==========================================
+// 每幀更新：給 App的Update 呼叫
+void Mario::Update() {
 
     // 先把所有人隱藏
     m_Idle->SetVisible(false);
@@ -390,16 +331,17 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
     m_DiedFinal->SetVisible(false);
     m_Fall->SetVisible(false);
 
-    // 停止不該播放的動畫
-    if (m_CurrentState != MarioState::WALKING) m_Walk->Stop();
-    if (m_CurrentState != MarioState::CLIMBING) m_Climb->Stop();
-    if (m_CurrentState != MarioState::DEAD) m_Dead->Stop();
+    // 2. 停止不該播放的動畫
+    if (m_CurrentState!=MarioState::WALKING) m_Walk->Stop();
+    if (m_CurrentState!=MarioState::CLIMBING) m_Climb->Stop();
+    if (m_CurrentState!=MarioState::DEAD) m_Dead->Stop();
 
     // 根據面向 (m_Direction) 統一處理縮放邏輯
+    // 垂直跳躍時使用備份的方向，其餘使用當前方向
     MarioDIR renderDir = (m_Direction == MarioDIR::NONE) ? m_BackupDirection : m_Direction;
     float scaleX = (renderDir == MarioDIR::LEFT) ? marioScale : -1.0f * marioScale;
 
-    // 根據現在的狀態決定顯示哪個圖層，並執行該狀態的特殊邏輯
+    // 3. 根據現在的狀態決定顯示哪個圖層，並執行該狀態的位移邏輯
     switch (m_CurrentState) {
         case MarioState::IDLE:
             m_Idle->SetVisible(true);
@@ -408,7 +350,7 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
         case MarioState::WALKING:
             m_Walk->SetVisible(true);
             m_Walk->SetScale({scaleX, marioScale});
-            m_Walk->Play();
+            m_Walk->Play(); // 開始播放走路動畫
             break;
         case MarioState::JUMPING:
             m_Jump->SetVisible(true);
@@ -416,7 +358,7 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
             break;
         case MarioState::CLIMBING:
             m_Climb->SetVisible(true);
-            m_Climb->Play();
+            m_Climb->Play(); // 開始播放攀爬動畫
             break;
         case MarioState::CLIMB_IDLE:
             m_Climb->SetVisible(true);
@@ -438,47 +380,46 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
             m_Hammer->Play();
 
             // 處理計時器
-            m_HammerTimer -= 1.0f; // 如果是用 deltaTime 可以改成 m_HammerTimer -= deltaTime;
+            m_HammerTimer -= 1.0f;
             if (m_HammerTimer <= 0) {
                 LOG_DEBUG("HAMMER EXPIRED");
                 SetState(MarioState::IDLE);
             }
             m_Hammer->SetScale({scaleX, marioScale});
             break;
-        case MarioState::HAMMER_IDLE:
-            // TODO: m_HammerIdle->SetVisible(true);
+        case MarioState::HAMMER_IDLE:   // TODO: m_HammerIdle->SetVisible(true);
             break;
         case MarioState::DEAD:
-            m_DeadTimer += 1.0f; // 同上，可考慮替換為 deltaTime
+            m_DeadTimer += 1.0f; // 假設遊戲運行於 60 FPS
 
             if (m_DeadTimer < 30.0f) {
+                // 1. 前 0.5 秒：停在 end1.png
                 m_Dead->SetVisible(true);
-                m_Dead->Stop();
+                m_Dead->Stop(); // 預設回到第 0 幀
             }
             else if (m_DeadTimer < 102.0f) {
+                // 2. 接下來約 1.2 秒：快速循環 3 次 (假設 100ms 一幀，一圈 4 幀需 400ms)
                 m_Dead->SetVisible(true);
                 if (!m_Dead->IsPlaying()) {
-                    LOG_DEBUG("End");
+                    LOG_DEBUG("End"); // 旋轉開始時輸出 End
                     m_Dead->SetLooping(true);
-                    m_Dead->SetInterval(100);
+                    m_Dead->SetInterval(100); // 快速播放
                     m_Dead->Play();
                 }
             }
             else {
+                // 3. 最後：停在 mario_died.png
                 m_Dead->Stop();
                 m_Dead->SetVisible(false);
                 m_DiedFinal->SetVisible(true);
             }
             break;
-        case MarioState::WIN:
+        case MarioState::WIN:    // 顯示 Idle
             m_Idle->SetVisible(true);
             m_Idle->SetScale({scaleX, marioScale});
             break;
     }
 
-    // 將所有動畫組件的座標與 Mario 本體同步
-    // (這一段通常在 GameObject::Update() 或是你的 AddToRenderer 裡面會處理，
-    // 若你有自定義的同步函式，也可以放在這裡呼叫)
     // 4. 重要：同步物理座標到所有圖片物件
     const auto mario_half_size = GetSize() / 2.0f;
 

@@ -500,11 +500,7 @@ void App::Update() {
     }
 
     // 即使遊戲結束，Mario 的動畫更新 (例如 Win 動畫) 與 Renderer 仍需持續運行
-    // 取得目前的 DeltaTime (時間差)
-    float dt = Util::Time::GetDeltaTimeMs();
-
-    // 將時間與地圖指標傳給 Mario 進行物理與動畫更新
-    m_Mario->Update(dt, m_Map);
+    m_Mario->Update();
     m_Renderer.Update();
 
 

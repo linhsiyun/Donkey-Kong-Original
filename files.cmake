@@ -6,8 +6,8 @@ set(SRC_FILES
     HUDManager.cpp
     Mario.cpp
     Barrel.cpp
-    LevelData.cpp
     Map.cpp
+    LevelData.cpp
 )
 
 set(INCLUDE_FILES
@@ -19,9 +19,9 @@ set(INCLUDE_FILES
     HUDManager.hpp
     Mario.hpp
     Barrel.hpp
-    TileType.hpp
-    LevelData.hpp
     Map.hpp
+    LevelData.hpp
+    TileType.hpp
 )
 
 set(TEST_FILES
