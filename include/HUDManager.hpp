@@ -87,6 +87,7 @@ public:
     // 提供 API 給其他物件呼叫
     void AddScore(int points);
     void ResetBonus(int amount = 5000);
+    void SetLevel(int level);
     int GetBonus() { return bonusTime; }
 };
 #endif // HUDMANAGER_HPP

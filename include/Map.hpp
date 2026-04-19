@@ -25,17 +25,19 @@ public:
     // 用來在遊戲途中切換地圖的 API
     void LoadNewMap(const std::string& imagePath, const std::string& txtPath);
 
-    // 輸入：以地圖左上角為 (0,0) 的絕對座標
-    // 輸出：轉換給引擎 GameObject 使用的世界座標 (中心點為 0,0)
-    glm::vec2 GetWorldPosition(float absX, float absY) const;
+    float GetMapWidth() const { return mapPixelWidth; }
+    float GetMapHeight() const { return mapPixelHeight; }
 
-    // 給定一個世界 Y 座標，回傳該位置所屬網格的「頂端表面」世界 Y 座標
-    float GetGridSurfaceY(float worldY) const;
+    float GetTileWidth() const { return actualTileWidth; }
+    float GetTileHeight() const { return actualTileHeight; }
 
 private:
     LevelData m_LevelData;
     void AutoScale();
+    void UpdateDimensions();
 
+    float mapPixelWidth = 0.0f;
+    float mapPixelHeight = 0.0f;
     float actualTileWidth;
     float actualTileHeight;
     float mapTopLeftX;

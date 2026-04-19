@@ -39,6 +39,12 @@ Mario::Mario() {
     m_Jump->SetVisible(false);
     m_Jump->SetScale({marioScale, marioScale});
 
+    // 初始化 Mario 墜落圖片 (暫時使用與跳躍相同的圖片，但可獨立設定)
+    m_Fall = std::make_shared<Character>(RESOURCE_DIR"/Images/Jump.png");
+    m_Fall->SetZIndex(50);
+    m_Fall->SetVisible(false);
+    m_Fall->SetScale({marioScale, marioScale});
+
     // 初始化 Mario 拿槌子的動畫 (Hammer1 ~ Hammer6)
     std::vector<std::string> hammerImages;
     hammerImages.reserve(6);
@@ -80,6 +86,7 @@ void Mario::AddToRenderer(Util::Renderer& renderer) {
     renderer.AddChild(m_Walk);
     renderer.AddChild(m_Climb);
     renderer.AddChild(m_Jump);
+    renderer.AddChild(m_Fall);
     renderer.AddChild(m_Hammer);
     renderer.AddChild(m_Dead);
     renderer.AddChild(m_DiedFinal);
@@ -94,6 +101,7 @@ void Mario::SetPosition(const glm::vec2& position) {
     m_Walk->SetPosition(position);
     m_Climb->SetPosition(position);
     m_Jump->SetPosition(position);
+    m_Fall->SetPosition(position);
 
     // 修正槌子動畫中心點偏移問題
     // 因為槌子圖片通常比一般走路圖案高（包含槌子揮上去的高度），導致圖片中心點上移，Mario 的身體就會看起來往下掉或往上飄。
@@ -112,12 +120,8 @@ void Mario::SetPosition(const glm::vec2& position) {
 }
 
 glm::vec2 Mario::GetSize() const {
-    if (m_CurrentState == MarioState::HAMMERING){
-        return m_Hammer->GetSize();
-    }
-    else if (m_CurrentState == MarioState::HAMMER_IDLE){
-        return m_HammerIdle->GetSize();
-    }
+    // 物理與地表偵測必須使用穩定的尺寸 (以 Idle 為基準)
+    // 避免動畫圖片大小(例如 m_Hammer)改變導致 footY 計算錯誤
     return m_Idle->GetSize();
 }
 
@@ -239,6 +243,50 @@ void Mario::JumpStart() {
     }
 }
 
+void Mario::Jump() {
+    // 設定跳躍參數 (後續可以修改這裡的數值)
+    const float totalJumpTime = 35.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
+    const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的兩倍
+
+    m_JumpTimer += 1.0f;
+
+    // 僅計算位移，不處理跳躍結束判定
+    float progress = m_JumpTimer / totalJumpTime;
+    float yOffset = 4.0f * jumpHeight * progress * (1.0f - progress);
+    m_Position.y = m_JumpStartPosition.y + yOffset;
+
+    if (m_Direction == MarioDIR::LEFT) m_Position.x -= movingStep;
+    else if (m_Direction == MarioDIR::RIGHT) m_Position.x += movingStep;
+
+    SetState(MarioState::JUMPING);
+}
+
+void Mario::Land(float floorY) {
+    LOG_DEBUG("LANDED");
+    m_IsJumping = false;
+    m_JumpTimer = 0.0f;
+    m_Direction = m_BackupDirection;
+    // 將位置修正到地板高度
+    SetPosition({m_Position.x, floorY + (GetSize().y / 2.0f)});
+
+    if (m_WaitForHammer) {
+        Hammer();
+        m_WaitForHammer = false;
+    } else {
+        IDLE();
+    }
+}
+
+// WALKING/JUMPING -> FALLING
+void Mario::Fall(){
+    if (m_CurrentState != MarioState::FALLING) {
+        LOG_DEBUG("FALLING");
+        m_IsJumping = false;
+        m_JumpTimer = 0.0f;
+        SetState(MarioState::FALLING);
+    }
+}
+
 void Mario::WaitForHammer(){
     m_WaitForHammer = true;
 }
@@ -340,7 +388,7 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
     m_Hammer->SetVisible(false);
     m_Dead->SetVisible(false);
     m_DiedFinal->SetVisible(false);
-    // TODO: m_Fall->SetVisible(false); 等等...
+    m_Fall->SetVisible(false);
 
     // 停止不該播放的動畫
     if (m_CurrentState != MarioState::WALKING) m_Walk->Stop();
@@ -374,7 +422,16 @@ void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
             m_Climb->SetVisible(true);
             break;
         case MarioState::FALLING:
-            // TODO: 如果有 FALL 圖層，在這裡顯示
+            // 這裡更新 Y 座標是正確的，因為 Update 每幀都會執行
+            m_Position.y -= movingStep * 1.5f;
+            if (m_Direction== MarioDIR::LEFT) {
+                m_Position.x -= movingStep;
+            }
+            else if (m_Direction== MarioDIR::RIGHT) {
+                m_Position.x += movingStep;
+            }
+            m_Fall->SetVisible(true);
+            m_Fall->SetScale({scaleX, marioScale});
             break;
         case MarioState::HAMMERING:
             m_Hammer->SetVisible(true);
