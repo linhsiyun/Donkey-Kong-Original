@@ -15,7 +15,7 @@ enum class MarioState {
     JUMPING,    // 跳躍中（包含上升與下降）,  一經發動即不可控
     FALLING,    // 墜落（例如從平台邊緣直接掉下去，不是因為跳躍）
     HAMMERING,  // 拿著槌子（這是一個特殊狀態，因為此時不能跳、不能爬）
-    HAMMER_IDLE,// 拿槌原地
+    HAMMER_IDLE,// 拿槌原地 //ToDO: 沒用到?
     DEAD,       // 死亡動畫
     WIN         // 抵達 Pauline 身邊的過場
 };

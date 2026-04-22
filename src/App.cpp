@@ -46,7 +46,7 @@ void App::LoadLevel(int level) {
         m_Mario->SetScreenBounds(halfWidth, halfHeight);
 
         // 第二關的各角色與道具初始位置 (目前暫時設定與第一關相同，之後你可以自由調整這組座標)
-        m_Mario->SetPosition({-halfWidth + 150.0f, -halfHeight + 50.0f});
+        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
         m_Fireball->SetPosition({-100.0f, -70.0f});
         if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
         if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
@@ -55,10 +55,12 @@ void App::LoadLevel(int level) {
         m_Map->LoadNewMap("../Resources/Images/board-elevators.png", "../Resources/Maps/Map3.txt");
 
         //TODO
+        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
     } else if (m_CurrentLevel == 4) {
         m_Map->LoadNewMap("../Resources/Images/board-rivets.png", "../Resources/Maps/Map4.txt");
 
         //TODO
+        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
     }
     LOG_INFO("map halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
 
