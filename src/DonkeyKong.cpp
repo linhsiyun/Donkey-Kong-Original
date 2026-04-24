@@ -21,9 +21,9 @@ DonkeyKong::DonkeyKong()
     // 步驟二：初始化，第一次進入「環顧狀態 (看左看右看前)」需要隨機搥胸多久
 #if 1 //sdbg
     m_NextLookTime = GetRandomChestBeatingDuration();
-#else
+#else    
     m_NextLookTime = 1;
-#endif
+#endif    
 }
 
 // =============================================
@@ -31,11 +31,8 @@ DonkeyKong::DonkeyKong()
 // 回傳 1000 到 5000 的隨機毫秒 (1~5 秒)
 // =============================================
 float DonkeyKong::GetRandomChestBeatingDuration() {
-#if 1 //sdbg
+    //sdbg, return 1000.0f + static_cast<float>(rand() % 1001);
     return 1000.0f + static_cast<float>(rand() % 4001);
-#else
-     return 1000.0f + static_cast<float>(rand() % 1001);
-#endif
 }
 
 // =============================================

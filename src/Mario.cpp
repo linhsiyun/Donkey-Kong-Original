@@ -39,12 +39,6 @@ Mario::Mario() {
     m_Jump->SetVisible(false);
     m_Jump->SetScale({marioScale, marioScale});
 
-    // 初始化 Mario 墜落圖片 (暫時使用與跳躍相同的圖片，但可獨立設定)
-    m_Fall = std::make_shared<Character>(RESOURCE_DIR"/Images/Jump.png");
-    m_Fall->SetZIndex(50);
-    m_Fall->SetVisible(false);
-    m_Fall->SetScale({marioScale, marioScale});
-
     // 初始化 Mario 拿槌子的動畫 (Hammer1 ~ Hammer6)
     std::vector<std::string> hammerImages;
     hammerImages.reserve(6);
@@ -86,7 +80,6 @@ void Mario::AddToRenderer(Util::Renderer& renderer) {
     renderer.AddChild(m_Walk);
     renderer.AddChild(m_Climb);
     renderer.AddChild(m_Jump);
-    renderer.AddChild(m_Fall);
     renderer.AddChild(m_Hammer);
     renderer.AddChild(m_Dead);
     renderer.AddChild(m_DiedFinal);
@@ -101,7 +94,6 @@ void Mario::SetPosition(const glm::vec2& position) {
     m_Walk->SetPosition(position);
     m_Climb->SetPosition(position);
     m_Jump->SetPosition(position);
-    m_Fall->SetPosition(position);
 
     // 修正槌子動畫中心點偏移問題
     // 因為槌子圖片通常比一般走路圖案高（包含槌子揮上去的高度），導致圖片中心點上移，Mario 的身體就會看起來往下掉或往上飄。
@@ -120,8 +112,12 @@ void Mario::SetPosition(const glm::vec2& position) {
 }
 
 glm::vec2 Mario::GetSize() const {
-    // 物理與地表偵測必須使用穩定的尺寸 (以 Idle 為基準)
-    // 避免動畫圖片大小(例如 m_Hammer)改變導致 footY 計算錯誤
+    if (m_CurrentState == MarioState::HAMMERING){
+        return m_Hammer->GetSize();
+    }
+    else if (m_CurrentState == MarioState::HAMMER_IDLE){
+        return m_HammerIdle->GetSize();
+    }
     return m_Idle->GetSize();
 }
 
@@ -203,79 +199,43 @@ void Mario::ClimbIdle() {
 }
 
 void Mario::JumpStart() {
+    // 確保只有在非跳躍狀態，且沒有拿槌子的時候才能起跳
     if (!m_IsJumping && m_CurrentState != MarioState::HAMMERING) {
         LOG_DEBUG("JUMPSTART");
+
         m_IsJumping = true;
-        m_JumpStartPosition = m_Position;
-        m_JumpTimer = 0.0f;
-        m_BackupDirection = m_Direction; // 跳躍開始時備份當前方向
+
+        // ==========================================
+        // [修改核心] 賦予向上的物理初速度
+        // (這兩行取代了舊的 m_JumpStartPosition 與 m_JumpTimer)
+        // ==========================================
+        m_VelocityY = m_JumpForce;
+
+        // 備份跳躍開始時的當前方向
+        m_BackupDirection = m_Direction;
         m_Direction = MarioDIR::NONE;    // 預設為垂直跳躍
 
         // 偵測是否同時按住左右鍵
         if (Util::Input::IsKeyPressed(Util::Keycode::RIGHT)) m_Direction = MarioDIR::RIGHT;
-        if (Util::Input::IsKeyPressed(Util::Keycode::LEFT)) m_Direction = MarioDIR::LEFT;
+        if (Util::Input::IsKeyPressed(Util::Keycode::LEFT))  m_Direction = MarioDIR::LEFT;
 
         // 如果是垂直跳躍，讓跳躍貼圖的面向跟隨目前 m_BackupDirection 的面向
-        if (m_Direction == MarioDIR::NONE){
+        if (m_Direction == MarioDIR::NONE) {
             if (m_BackupDirection == MarioDIR::LEFT) {
                 m_Jump->SetScale({marioScale, marioScale});
             }
             else {
-                m_Jump->SetScale({-1*marioScale, marioScale});
+                m_Jump->SetScale({-marioScale, marioScale}); // 直接寫 -marioScale 即可
             }
         }
         else if (m_Direction == MarioDIR::LEFT) {
-             m_Jump->SetScale({marioScale, marioScale});
+            m_Jump->SetScale({marioScale, marioScale});
         }
         else if (m_Direction == MarioDIR::RIGHT) {
-             m_Jump->SetScale({-1*marioScale, marioScale});
+            m_Jump->SetScale({-marioScale, marioScale});
         }
 
         SetState(MarioState::JUMPING);
-    }
-}
-
-void Mario::Jump() {
-    // 設定跳躍參數 (後續可以修改這裡的數值)
-    const float totalJumpTime = 35.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
-    const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的兩倍
-
-    m_JumpTimer += 1.0f;
-
-    // 僅計算位移，不處理跳躍結束判定
-    float progress = m_JumpTimer / totalJumpTime;
-    float yOffset = 4.0f * jumpHeight * progress * (1.0f - progress);
-    m_Position.y = m_JumpStartPosition.y + yOffset;
-
-    if (m_Direction == MarioDIR::LEFT) m_Position.x -= movingStep;
-    else if (m_Direction == MarioDIR::RIGHT) m_Position.x += movingStep;
-
-    SetState(MarioState::JUMPING);
-}
-
-void Mario::Land(float floorY) {
-    LOG_DEBUG("LANDED");
-    m_IsJumping = false;
-    m_JumpTimer = 0.0f;
-    m_Direction = m_BackupDirection;
-    // 將位置修正到地板高度
-    SetPosition({m_Position.x, floorY + (GetSize().y / 2.0f)});
-
-    if (m_WaitForHammer) {
-        Hammer();
-        m_WaitForHammer = false;
-    } else {
-        IDLE();
-    }
-}
-
-// WALKING/JUMPING -> FALLING
-void Mario::Fall(){
-    if (m_CurrentState != MarioState::FALLING) {
-        LOG_DEBUG("FALLING");
-        m_IsJumping = false;
-        m_JumpTimer = 0.0f;
-        SetState(MarioState::FALLING);
     }
 }
 
@@ -318,8 +278,270 @@ void Mario::SetScreenBounds(float halfWidth, float halfHeight) {
     m_ScreenHalfHeight = halfHeight;
 }
 
-// 每幀更新：給 App的Update 呼叫
-void Mario::Update() {
+// 注意：標頭檔 (Mario.hpp) 記得要將 Update 改為接收這兩個參數
+// void Update(float deltaTime, const std::shared_ptr<Map>& map);
+
+void Mario::Update(float deltaTime, const std::shared_ptr<Map>& map) {
+    // ==========================================
+    // 1. 物理與預測座標運算 (Physics & Movement)
+    // ==========================================
+
+    // 【關鍵修正 1】：不要用 GetPosition()！
+    // m_LastPosition 是真正的上一幀安全位置
+    // m_Position 則是經過 Walk() 改變後的「這幀目標位置」
+    glm::vec2 prevPos = m_LastPosition;
+    glm::vec2 nextPos = m_Position;
+
+    // 防止遊戲剛啟動或拖曳視窗時，巨大的時間差導致瑪利歐一幀移動幾萬像素（瞬間穿牆）
+    if (deltaTime > 100.0f) {
+        deltaTime = 16.0f;
+    }
+    float dtSec = deltaTime / 1000.0f;
+
+    // ==========================================
+    // 【階梯與斜坡適應 (Terrain Adaptation)】
+    // ==========================================
+    if (m_CurrentState == MarioState::IDLE || m_CurrentState == MarioState::WALKING) {
+
+        float marioHalfWidth = GetSize().x / 2.0f;
+        float marioHalfHeight = GetSize().y / 2.0f;
+        const float MAX_STEP_HEIGHT = GetSize().y * 0.4f;
+
+        if (map != nullptr) {
+            // ------------------------------------------------
+            // 第一階段：上坡抬腳 (Step Up) & 撞牆阻擋
+            // ------------------------------------------------
+            // 【關鍵修正 2】：探測 X 座標要往前推！看瑪利歐的「前半身」而不是中心點
+            float checkFrontX = nextPos.x;
+            if (m_Direction == MarioDIR::RIGHT) checkFrontX += (marioHalfWidth * 0.8f);
+            else if (m_Direction == MarioDIR::LEFT) checkFrontX -= (marioHalfWidth * 0.8f);
+
+            float checkWallY = nextPos.y - marioHalfHeight + 2.0f; // 腳底往上一點點
+            TileType frontTile = map->GetTileAtPosition(checkFrontX, checkWallY);
+
+            if (frontTile == TileType::FLOOR) {
+                // 前方有障礙物！檢查它是不是「矮階梯/斜坡」
+                bool canStepUp = false;
+                float stepScanY = checkWallY;
+                float maxStepY = checkWallY + MAX_STEP_HEIGHT;
+                // 精準紀錄掃描到的「最高實體地板」
+                float highestFloorY = checkWallY;
+
+                while (stepScanY <= maxStepY) {
+                    if (map->GetTileAtPosition(checkFrontX, stepScanY) != TileType::FLOOR) {
+                        canStepUp = true;
+                        float surfaceY = map->GetGridSurfaceY(stepScanY - 1.0f);
+                        nextPos.y = surfaceY + marioHalfHeight;
+                        m_CurrentFloorY = surfaceY; // 【修正】只記憶真實表面高度
+                        break;
+                    }
+                    stepScanY += 1.0f;
+                }
+
+                // 如果往上找了 MAX_STEP_HEIGHT 都還是牆壁，代表這是一堵高牆，不是斜坡
+                if (!canStepUp) {
+                    // 退回真正的安全 X 座標，完美擋住！
+                    nextPos.x = prevPos.x;
+                }
+            }
+
+            // ------------------------------------------------
+            // 第二階段：下坡吸附 (Step Down) & 踩空掉落
+            // ------------------------------------------------
+            float currentFootY = nextPos.y - marioHalfHeight;
+            bool foundFloor = false;
+
+            // 下坡繼續用「中心點 (nextPos.x)」來探測，這樣瑪利歐重心過半才會往下走，手感更真實
+            float groundScanY = currentFootY + 2.0f;
+            float dropLimitY = currentFootY - MAX_STEP_HEIGHT;
+
+            while (groundScanY >= dropLimitY) {
+                if (map->GetTileAtPosition(nextPos.x, groundScanY) == TileType::FLOOR) {
+                    foundFloor = true;
+                    float surfaceY = map->GetGridSurfaceY(groundScanY);
+                    nextPos.y = surfaceY + marioHalfHeight;
+                    m_CurrentFloorY = surfaceY; // 【修正】
+                    break;
+                }
+                groundScanY -= 1.0f;
+            }
+
+            if (!foundFloor) {
+                SetState(MarioState::FALLING);
+            }
+        }
+    }
+
+    // 1.5 攀爬狀態邊界與著陸檢查 (Ladder Bounds)
+    if (m_CurrentState == MarioState::CLIMBING || m_CurrentState == MarioState::CLIMB_IDLE) {
+        if (map != nullptr) {
+            float marioHalfWidth = GetSize().x / 2.0f;
+            float marioHalfHeight = GetSize().y / 2.0f;
+            float footY = nextPos.y - marioHalfHeight;
+
+            // 取得腳底目前所在的格子，以及稍微往下探測的格子
+            TileType footTile = map->GetTileAtPosition(nextPos.x, footY);
+            TileType belowTile = map->GetTileAtPosition(nextPos.x, footY - 2.0f);
+
+            // --- A. 往上爬 (Up) ---
+            if (nextPos.y > prevPos.y) {
+                if (footTile != TileType::LADDER && footTile != TileType::BROKEN_LADDER) {
+                    TileType leftTile = map->GetTileAtPosition(nextPos.x - marioHalfWidth, footY - 2.0f);
+                    TileType rightTile = map->GetTileAtPosition(nextPos.x + marioHalfWidth, footY - 2.0f);
+
+                    if (belowTile == TileType::FLOOR || leftTile == TileType::FLOOR || rightTile == TileType::FLOOR || footTile == TileType::FLOOR) {
+                        SetState(MarioState::IDLE);
+                        float surfaceY = map->GetGridSurfaceY(footTile == TileType::FLOOR ? footY : footY - 2.0f);
+                        nextPos.y = surfaceY + marioHalfHeight;
+                        m_CurrentFloorY = surfaceY; // 【修正】
+                    } else {
+                        nextPos.y = prevPos.y;
+                    }
+                }
+            }
+            // --- B. 往下爬 (Down) ---
+            else if (nextPos.y < prevPos.y) {
+                bool landed = false;
+                float targetSurfaceY = 0.0f;
+
+                if (footTile == TileType::FLOOR) {
+                    float surfY = map->GetGridSurfaceY(footY);
+                    if (surfY < m_CurrentFloorY - 5.0f) { // 現在條件不會被誤判了！
+                        landed = true;
+                        targetSurfaceY = surfY;
+                    }
+                }
+                else if (belowTile == TileType::FLOOR) {
+                    float surfY = map->GetGridSurfaceY(footY - 2.0f);
+                    if (surfY < m_CurrentFloorY - 5.0f) {
+                        landed = true;
+                        targetSurfaceY = surfY;
+                    }
+                }
+
+                if (landed) {
+                    SetState(MarioState::IDLE);
+                    nextPos.y = targetSurfaceY + marioHalfHeight;
+                    m_CurrentFloorY = targetSurfaceY; // 【修正】
+                }
+                // 防呆掉落邏輯保留不變
+                // 離開梯子且沒有踩到新地板 -> 掉落
+                // 【防呆】：加上 footTile != TileType::FLOOR，避免他剛往下爬還穿梭在「出發樓層」內部時，被誤判為離開梯子而墜落
+                else if (footTile != TileType::LADDER && footTile != TileType::BROKEN_LADDER &&
+                         belowTile != TileType::LADDER && belowTile != TileType::BROKEN_LADDER &&
+                         footTile != TileType::FLOOR) {
+                    SetState(MarioState::FALLING);
+                         }
+            }
+        }
+    }
+
+    // 如果在空中，套用重力與垂直移動
+    if (m_CurrentState == MarioState::JUMPING || m_CurrentState == MarioState::FALLING) {
+
+        m_VelocityY -= m_Gravity * dtSec;
+        // 空氣阻力限制：任何物體都不該掉得比這個速度更快，防止子彈穿紙效應
+        if (m_VelocityY < -1500.0f) {
+            m_VelocityY = -1500.0f;
+        }
+        nextPos.y += m_VelocityY * dtSec;
+
+        // TODO: (如果你原本有寫水平跳躍移動，例如 nextPos.x += ... 記得加在這裡)
+
+        // 往下掉落時才檢查是否踩到地板
+        // 往下掉落時才檢查是否踩到地板
+        if (m_VelocityY < 0.0f && map != nullptr) {
+            float marioHalfHeight = GetSize().y / 2.0f;
+            float currentFootY = nextPos.y - marioHalfHeight;
+            float oldFootY     = prevPos.y - marioHalfHeight;
+
+            bool hitFloor = false;
+            float surfaceY = 0.0f;
+            float checkY = oldFootY;
+
+            // 【關鍵修改】：每隔 1.0f 像素往下細切掃描！
+            // 這樣不管你的瑪利歐掉多快，或是地板多薄，絕對不可能「漏看」任何一層地板
+            while (checkY >= currentFootY) {
+                if (map->GetTileAtPosition(nextPos.x, checkY) == TileType::FLOOR) {
+                    float tempSurfaceY = map->GetGridSurfaceY(checkY);
+
+                    // ==========================================
+                    // 【核心修正：大金剛專屬限制】
+                    // 如果這層地板的高度，比我起跳前踩的樓層還要高
+                    // (加 5.0f 是為了容許在地板上微小的高低差)，就直接無視它！
+                    // ==========================================
+                    if (tempSurfaceY > m_CurrentFloorY + 5.0f) {
+                        checkY -= 1.0f;
+                        continue; // 忽略這個地板，繼續往下掃描
+                    }
+                    hitFloor = true;
+                    surfaceY = map->GetGridSurfaceY(checkY);
+                    break;
+                }
+                checkY -= 1.0f; // 步長設為 1.0f，最為精準
+            }
+
+            // 防呆機制
+            if (!hitFloor && map->GetTileAtPosition(nextPos.x, currentFootY) == TileType::FLOOR) {
+                float tempSurfaceY = map->GetGridSurfaceY(currentFootY);
+                if (tempSurfaceY <= m_CurrentFloorY + 5.0f) { // 確保不是更高的樓層
+                    hitFloor = true;
+                    surfaceY = tempSurfaceY;
+                }
+            }
+
+            if (hitFloor) {
+                if (oldFootY >= surfaceY && currentFootY <= surfaceY) {
+                    m_VelocityY = 0.0f;
+                    nextPos.y = surfaceY + marioHalfHeight;
+                    m_CurrentFloorY = surfaceY; // 【新增】跳躍著陸也要更新樓層！
+                    SetState(MarioState::IDLE);
+                    m_Direction = m_BackupDirection;
+                    m_IsJumping = false;
+                }
+            }
+        }
+    }
+    // TODO: (如果你原本有寫走路的水平位移 nextPos.x += ...，記得寫在 else if (WALKING) 裡面)
+
+    // ==========================================
+    // 2. 邊界與實體碰撞校正
+    // ==========================================
+    const auto mario_half_size = GetSize() / 2.0f;
+
+    // --- A. 螢幕邊界檢查 ---
+    if (m_ScreenHalfWidth > 0 && m_ScreenHalfHeight > 0) {
+        float limitX = m_ScreenHalfWidth - mario_half_size.x;
+        float limitY = m_ScreenHalfHeight - mario_half_size.y;
+
+        if (nextPos.x > limitX) nextPos.x = limitX;
+        if (nextPos.x < -limitX) nextPos.x = -limitX;
+        if (nextPos.y > limitY) nextPos.y = limitY;
+        if (nextPos.y < -limitY) nextPos.y = -limitY;
+    }
+
+    // --- B. Donkey Kong 碰撞檢查 ---
+    if (m_DonkeyKongSize.x > 0 && m_DonkeyKongSize.y > 0) {
+        const auto dk_half_size = m_DonkeyKongSize / 2.0f;
+
+        bool collideX = std::abs(nextPos.x - m_DonkeyKongPos.x) < (mario_half_size.x + dk_half_size.x);
+        bool collideY = std::abs(nextPos.y - m_DonkeyKongPos.y) < (mario_half_size.y + dk_half_size.y);
+
+        if (collideX && collideY) {
+            nextPos = m_LastPosition; // 發生重疊，直接退回上一幀的安全位置
+        }
+    }
+
+    // ==========================================
+    // 3. 寫回最終座標
+    // ==========================================
+    m_LastPosition = prevPos;   // 紀錄真實的上一幀位置
+    m_Position = nextPos;       // 同步成員變數
+    SetPosition(m_Position);    // 更新底層 Transform
+
+    // ==========================================
+    // 4. 視覺與動畫圖層管理 (恢復你的完美 Switch)
+    // ==========================================
 
     // 先把所有人隱藏
     m_Idle->SetVisible(false);
@@ -329,19 +551,20 @@ void Mario::Update() {
     m_Hammer->SetVisible(false);
     m_Dead->SetVisible(false);
     m_DiedFinal->SetVisible(false);
-    m_Fall->SetVisible(false);
+    if (m_Fall) m_Fall->SetVisible(false);
+    if (m_HammerIdle) m_HammerIdle->SetVisible(false);
+    if (m_Win) m_Win->SetVisible(false);
 
-    // 2. 停止不該播放的動畫
-    if (m_CurrentState!=MarioState::WALKING) m_Walk->Stop();
-    if (m_CurrentState!=MarioState::CLIMBING) m_Climb->Stop();
-    if (m_CurrentState!=MarioState::DEAD) m_Dead->Stop();
+    // 停止不該播放的動畫
+    if (m_CurrentState != MarioState::WALKING) m_Walk->Stop();
+    if (m_CurrentState != MarioState::CLIMBING) m_Climb->Stop();
+    if (m_CurrentState != MarioState::DEAD) m_Dead->Stop();
 
-    // 根據面向 (m_Direction) 統一處理縮放邏輯
-    // 垂直跳躍時使用備份的方向，其餘使用當前方向
+    // 根據面向統一處理縮放邏輯
     MarioDIR renderDir = (m_Direction == MarioDIR::NONE) ? m_BackupDirection : m_Direction;
     float scaleX = (renderDir == MarioDIR::LEFT) ? marioScale : -1.0f * marioScale;
 
-    // 3. 根據現在的狀態決定顯示哪個圖層，並執行該狀態的位移邏輯
+    // 根據狀態設定可見圖層與播放控制
     switch (m_CurrentState) {
         case MarioState::IDLE:
             m_Idle->SetVisible(true);
@@ -350,7 +573,7 @@ void Mario::Update() {
         case MarioState::WALKING:
             m_Walk->SetVisible(true);
             m_Walk->SetScale({scaleX, marioScale});
-            m_Walk->Play(); // 開始播放走路動畫
+            m_Walk->Play();
             break;
         case MarioState::JUMPING:
             m_Jump->SetVisible(true);
@@ -358,102 +581,96 @@ void Mario::Update() {
             break;
         case MarioState::CLIMBING:
             m_Climb->SetVisible(true);
-            m_Climb->Play(); // 開始播放攀爬動畫
+            m_Climb->Play();
             break;
         case MarioState::CLIMB_IDLE:
             m_Climb->SetVisible(true);
             break;
         case MarioState::FALLING:
-            // 這裡更新 Y 座標是正確的，因為 Update 每幀都會執行
-            m_Position.y -= movingStep * 1.5f;
-            if (m_Direction== MarioDIR::LEFT) {
-                m_Position.x -= movingStep;
+            if (m_Fall) {
+                m_Fall->SetVisible(true);
+                m_Fall->SetScale({scaleX, marioScale});
+            } else {
+                // 如果還沒設定 FALL 圖片，先用 Jump 代替避免隱形
+                m_Jump->SetVisible(true);
+                m_Jump->SetScale({scaleX, marioScale});
             }
-            else if (m_Direction== MarioDIR::RIGHT) {
-                m_Position.x += movingStep;
-            }
-            m_Fall->SetVisible(true);
-            m_Fall->SetScale({scaleX, marioScale});
             break;
         case MarioState::HAMMERING:
             m_Hammer->SetVisible(true);
             m_Hammer->Play();
-
-            // 處理計時器
-            m_HammerTimer -= 1.0f;
+            m_HammerTimer -= deltaTime;
             if (m_HammerTimer <= 0) {
                 LOG_DEBUG("HAMMER EXPIRED");
                 SetState(MarioState::IDLE);
             }
             m_Hammer->SetScale({scaleX, marioScale});
             break;
-        case MarioState::HAMMER_IDLE:   // TODO: m_HammerIdle->SetVisible(true);
+        case MarioState::HAMMER_IDLE:
+            if (m_HammerIdle) {
+                m_HammerIdle->SetVisible(true);
+                m_HammerIdle->SetScale({scaleX, marioScale});
+            }
             break;
         case MarioState::DEAD:
-            m_DeadTimer += 1.0f; // 假設遊戲運行於 60 FPS
-
-            if (m_DeadTimer < 30.0f) {
-                // 1. 前 0.5 秒：停在 end1.png
+            // 原本用 += 1.0f，現在換成真實時間 deltaTime(毫秒)，所以判斷的閾值要等比例放大 (例如 *10)
+            m_DeadTimer += deltaTime;
+            if (m_DeadTimer < 300.0f) {
                 m_Dead->SetVisible(true);
-                m_Dead->Stop(); // 預設回到第 0 幀
+                m_Dead->Stop();
             }
-            else if (m_DeadTimer < 102.0f) {
-                // 2. 接下來約 1.2 秒：快速循環 3 次 (假設 100ms 一幀，一圈 4 幀需 400ms)
+            else if (m_DeadTimer < 1000.0f) {
                 m_Dead->SetVisible(true);
                 if (!m_Dead->IsPlaying()) {
-                    LOG_DEBUG("End"); // 旋轉開始時輸出 End
                     m_Dead->SetLooping(true);
-                    m_Dead->SetInterval(100); // 快速播放
+                    m_Dead->SetInterval(100);
                     m_Dead->Play();
                 }
             }
             else {
-                // 3. 最後：停在 mario_died.png
                 m_Dead->Stop();
                 m_Dead->SetVisible(false);
                 m_DiedFinal->SetVisible(true);
             }
             break;
-        case MarioState::WIN:    // 顯示 Idle
-            m_Idle->SetVisible(true);
-            m_Idle->SetScale({scaleX, marioScale});
+        case MarioState::WIN:
+            if (m_Win) {
+                m_Win->SetVisible(true);
+                m_Win->SetScale({scaleX, marioScale});
+            } else {
+                m_Idle->SetVisible(true);
+                m_Idle->SetScale({scaleX, marioScale});
+            }
             break;
     }
-
-    // 4. 重要：同步物理座標到所有圖片物件
-    const auto mario_half_size = GetSize() / 2.0f;
-
-    // --- A. 螢幕邊界檢查 ---
-    if (m_ScreenHalfWidth > 0 && m_ScreenHalfHeight > 0) {
-        float limitX = m_ScreenHalfWidth - mario_half_size.x;
-        float limitY = m_ScreenHalfHeight - mario_half_size.y;
-
-        if (m_Position.x > limitX) m_Position.x = limitX;
-        if (m_Position.x < -limitX) m_Position.x = -limitX;
-        if (m_Position.y > limitY) m_Position.y = limitY;
-        if (m_Position.y < -limitY) m_Position.y = -limitY;
-    }
-
-    // --- B. Donkey Kong 碰撞檢查 ---
-    if (m_DonkeyKongSize.x > 0 && m_DonkeyKongSize.y > 0) {
-        const auto dk_half_size = m_DonkeyKongSize / 2.0f;
-
-        bool collideX = std::abs(m_Position.x - m_DonkeyKongPos.x) < (mario_half_size.x + dk_half_size.x);
-        bool collideY = std::abs(m_Position.y - m_DonkeyKongPos.y) < (mario_half_size.y + dk_half_size.y);
-
-        if (collideX && collideY) {
-            m_Position = m_LastPosition; // 發生重疊，退回上一個合法的位置
-        }
-    }
-
-    // 更新上一幀位置，供下一幀檢查使用
-    m_LastPosition = m_Position;
-
-    // 無論 Mario 是在走路、跳躍還是死亡墜落，這行保證了畫面上看到的圖會跟著 m_Position 移動
-    SetPosition(m_Position);
 }
 
 void Mario::SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize) {
     m_DonkeyKongPos = dkPos;
     m_DonkeyKongSize = dkSize;
+}
+
+bool Mario::CanClimbDown(const std::shared_ptr<Map>& map) const {
+    if (map == nullptr) return false;
+
+    float marioHalfWidth = GetSize().x / 4.0f;
+    float footY = m_Position.y - (GetSize().y / 2.0f);
+
+    // 往下掃描一個深度區間 (例如 10 到 50 像素)，確保穿透 30 像素厚的地板
+    for (float yOffset = 10.0f; yOffset <= 50.0f; yOffset += 5.0f) {
+        float checkY = footY - yOffset;
+
+        TileType center = map->GetTileAtPosition(m_Position.x, checkY);
+        TileType left   = map->GetTileAtPosition(m_Position.x - marioHalfWidth, checkY);
+        TileType right  = map->GetTileAtPosition(m_Position.x + marioHalfWidth, checkY);
+
+        if (center == TileType::LADDER || center == TileType::BROKEN_LADDER ||
+            left   == TileType::LADDER || left   == TileType::BROKEN_LADDER ||
+            right  == TileType::LADDER || right  == TileType::BROKEN_LADDER) {
+
+            LOG_DEBUG("[Physics] 透視眼探測到下方有梯子，Offset: {}", yOffset);
+            return true;
+            }
+    }
+    return false;
 }

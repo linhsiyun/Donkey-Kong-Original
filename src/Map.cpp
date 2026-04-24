@@ -4,7 +4,6 @@
 #include "config.hpp"
 #include <cmath>
 #include <algorithm>// 【新增】引入 cmath 以使用 std::floor
-#include "Setting.hpp"
 
 Map::Map(const std::string& imagePath, const std::string& txtPath) {
     // 設定地圖的視覺 (掛載整張大圖)
@@ -16,23 +15,32 @@ Map::Map(const std::string& imagePath, const std::string& txtPath) {
     // 載入地圖的邏輯陣列
     m_LevelData.LoadFromFile(txtPath);
     AutoScale();
-    UpdateDimensions();
+
 }
 
 // 新增實作座標轉換
 TileType Map::GetTileAtPosition(float worldX, float worldY) const {
-    // 預防讀取空的地圖資料而導致除以零
-    if (m_LevelData.GetWidth() == 0 || m_LevelData.GetHeight() == 0) {
-        return TileType::EMPTY;
-    }
+    // 1. 取得目前的縮放比例 (假設是等比例縮放)
+    float scale = m_Transform.scale.x;
 
-    // 計算角色的座標相對於地圖左上角的相對距離
+    // 2. 計算「縮放後」的地圖實際總寬高 (像素)
+    float mapPixelWidth = m_LevelData.GetWidth() * TILE_WIDTH * scale;
+    float mapPixelHeight = m_LevelData.GetHeight() * TILE_HEIGHT * scale;
+
+    float mapCenterX = GetTransform().translation.x;
+    float mapCenterY = GetTransform().translation.y;
+
+    // 3. 算出地圖左上角的真實座標
+    float mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
+    float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+
+    // 4. 計算滑鼠相對於地圖左上角的距離
     float localX = worldX - mapTopLeftX;
     float localY = mapTopLeftY - worldY;
 
-    // 4. 使用最新算出的動態網格大小來換算角色目前踩在第幾格（Index）
-    int gridX = static_cast<int>(std::floor(localX / actualTileWidth));
-    int gridY = static_cast<int>(std::floor(localY / actualTileHeight));
+    // 5. 關鍵：除以「縮放後」的單格大小
+    int gridX = static_cast<int>(std::floor(localX / (TILE_WIDTH * scale)));
+    int gridY = static_cast<int>(std::floor(localY / (TILE_HEIGHT * scale)));
 
     return m_LevelData.GetTile(gridX, gridY);
 }
@@ -43,35 +51,8 @@ void Map::LoadNewMap(const std::string& imagePath, const std::string& txtPath) {
     // 重新載入新的 TXT 陣列
     m_LevelData.LoadFromFile(txtPath);
     AutoScale();
-    UpdateDimensions();
 
-    LOG_INFO("map switches to: {}, {}", imagePath, txtPath);
-}
-
-void Map::UpdateDimensions() {
-    // 1. 取得地圖目前的縮放比例與原始圖片大小
-    float scaleX = std::abs(GetTransform().scale.x);
-    float scaleY = std::abs(GetTransform().scale.y);
-    glm::vec2 imageSize = m_Drawable->GetSize();
-
-    // 2. 將原始圖片大小乘上縮放倍率，得到「整張地圖在畫面上真實的像素長寬」
-    mapPixelWidth = imageSize.x * scaleX;
-    mapPixelHeight = imageSize.y * scaleY;
-    LOG_INFO("  mapPixel: ({},{})", mapPixelWidth, mapPixelHeight);
-
-    // 3. 【動態連動】計算單一格子的實際寬高
-    //    公式：地圖實際顯示寬度 / TXT 網格的行數 = 單一格子的動態寬度
-    actualTileWidth = mapPixelWidth / m_LevelData.GetWidth();
-    actualTileHeight = mapPixelHeight / m_LevelData.GetHeight();
-    LOG_INFO("actualTile: ({},{})", actualTileWidth, actualTileHeight);
-
-    float mapCenterX = GetTransform().translation.x;
-    float mapCenterY = GetTransform().translation.y;
-
-    // 定位出地圖圖片的左上角座標
-    mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
-    mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
-    LOG_INFO(" mapTopLeft: ({},{})", mapTopLeftX, mapTopLeftY);
+    LOG_INFO("地圖已成功切換至: {}", imagePath);
 }
 
 // 自動縮放邏輯
@@ -80,18 +61,55 @@ void Map::AutoScale() {
     glm::vec2 imageSize = m_Drawable->GetSize();
 
     // 分別計算 X 軸與 Y 軸需要放大的倍率
-#if VSCODE
-    float scaleX = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / imageSize.x;
-    float scaleY = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / imageSize.y;
-#else
     float scaleX = static_cast<float>(WINDOW_WIDTH) / imageSize.x;
     float scaleY = static_cast<float>(WINDOW_HEIGHT) / imageSize.y;
-#endif
 
     // 使用 std::min 會讓整張圖「完整塞進」視窗 (維持比例，但可能會留黑邊)
     // 如果你希望圖片「填滿」整個視窗 (維持比例，但不留黑邊，超出視窗的部分會被裁切掉)，請把 min 改成 max
     float finalScale = std::min(scaleX, scaleY);
 
     m_Transform.scale = {finalScale, finalScale};
-    LOG_INFO("map AutoScale: {}", finalScale);
+    LOG_INFO("地圖自動縮放比例為: {}", finalScale);
+}
+
+// Map.cpp
+glm::vec2 Map::GetWorldPosition(float absX, float absY) const {
+    // 1. 取得目前地圖的縮放比例
+    float scale = m_Transform.scale.x;
+
+    // 2. 計算地圖的真實長寬
+    float mapPixelWidth = m_LevelData.GetWidth() * TILE_WIDTH * scale;
+    float mapPixelHeight = m_LevelData.GetHeight() * TILE_HEIGHT * scale;
+
+    float mapCenterX = GetTransform().translation.x;
+    float mapCenterY = GetTransform().translation.y;
+
+    // 3. 算出地圖左上角的真實世界座標
+    float mapTopLeftX = mapCenterX - (mapPixelWidth / 2.0f);
+    float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+
+    // 4. 套用絕對座標：X 向右加，Y 向下減 (因為引擎的 Y 軸是往上增長的)
+    return {
+        mapTopLeftX + absX,
+        mapTopLeftY - absY
+    };
+}
+
+float Map::GetGridSurfaceY(float worldY) const {
+    float scale = m_Transform.scale.x;
+
+    // 計算地圖真實高度與左上角的 Y 座標
+    float mapPixelHeight = m_LevelData.GetHeight() * TILE_HEIGHT * scale;
+    float mapCenterY = GetTransform().translation.y;
+    float mapTopLeftY = mapCenterY + (mapPixelHeight / 2.0f);
+
+    // 計算傳入的 Y 距離地圖頂端有多遠
+    float localY = mapTopLeftY - worldY;
+
+    // 算出這是在第幾列 (gridY)
+    int gridY = static_cast<int>(std::floor(localY / (TILE_HEIGHT * scale)));
+
+    // 關鍵：反推該列「最頂端表面」的世界座標
+    // 因為引擎的 Y 軸是往上為正，所以從 TopLeftY 往下扣除 (gridY 個格子的高度)
+    return mapTopLeftY - (gridY * TILE_HEIGHT * scale);
 }

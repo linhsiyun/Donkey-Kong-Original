@@ -34,9 +34,6 @@ public:
 
     void End(); // NOLINT(readability-convert-member-functions-to-static)
 
-    // 新增：載入關卡的函式，將傳入關卡編號
-    void LoadLevel(int level);
-
 private:
     void ValidTask();
 
@@ -60,9 +57,6 @@ private:
 
     float halfWidth;
     float halfHeight;
-
-    // 定義當前的關卡編號
-    int m_CurrentLevel = 1;
 };
 
 #endif

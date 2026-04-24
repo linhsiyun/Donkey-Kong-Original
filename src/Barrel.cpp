@@ -6,7 +6,7 @@
 // 建構子：接收圖片路徑並初始化初始狀態
 // 初始化酒桶的圖片序列 (Barrel1.png ~ Barrel6.png)
 // =============================================
-Barrel::Barrel(State state, Direction dir)
+Barrel::Barrel()
     : AnimatedCharacter({
           RESOURCE_DIR"/Images/Barrel1.png",
           RESOURCE_DIR"/Images/Barrel2.png",
@@ -14,15 +14,13 @@ Barrel::Barrel(State state, Direction dir)
           RESOURCE_DIR"/Images/Barrel4.png",
           RESOURCE_DIR"/Images/Barrel5.png",
           RESOURCE_DIR"/Images/Barrel6.png"
-      }), m_State(state), m_Direction(dir) {
+      }) {
     // 步驟一：停止父類別預設的自動播放，我們要自己根據方向與狀態來控制圖片的切換
     Stop();
 
-    // 初始化開始的圖片
+    // 初始化開始的圖片為第一張 (索引 0: Barrel.png)
     if (auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable)) {
-        // 如果起始狀態是掉落，則設為掉落幀 (索引 4)；否則設為滾動幀 (索引 0)
-        m_CurrentFrame = (m_State == State::ROLLING) ? 0 : 4;
-        anim->SetCurrentFrame(m_CurrentFrame);
+        anim->SetCurrentFrame(0);
     }
 }
 
@@ -81,7 +79,7 @@ void Barrel::Update() {
             currentPos.x += m_MoveSpeed * dtSec;
         } else {
             currentPos.x -= m_MoveSpeed * dtSec;
-        }
+        }        
         currentPos.y -= m_FallSpeed * dtSec;
 
         // 2. 動畫更新 (掉落中的兩張圖片：索引 4 與 5)

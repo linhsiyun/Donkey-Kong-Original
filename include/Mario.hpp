@@ -5,6 +5,7 @@
 #include "Util/Renderer.hpp"
 #include "Character.hpp"
 #include "AnimatedCharacter.hpp"
+#include "Map.hpp"
 
 // Mario 的狀態列舉，定義了 Mario 在遊戲中可能的各種行為狀態
 enum class MarioState {
@@ -15,7 +16,7 @@ enum class MarioState {
     JUMPING,    // 跳躍中（包含上升與下降）,  一經發動即不可控
     FALLING,    // 墜落（例如從平台邊緣直接掉下去，不是因為跳躍）
     HAMMERING,  // 拿著槌子（這是一個特殊狀態，因為此時不能跳、不能爬）
-    HAMMER_IDLE,// 拿槌原地 //ToDO: 沒用到?
+    HAMMER_IDLE,// 拿槌原地
     DEAD,       // 死亡動畫
     WIN         // 抵達 Pauline 身邊的過場
 };
@@ -41,8 +42,8 @@ public:
 
     // 每幀更新：給 App的Update 呼叫
     // 根據 CurrentState 來決定誰該顯示 (Visible)、是否播放/停止動畫 (Play/Stop)、以及其他邏輯處理
-    void Update();
-
+    // 將 Update 修改為接收 Map 的指標
+    void Update(float deltaTime, const std::shared_ptr<Map>& map);
     // 統一設定座標，並同步給內部的所有圖層
     void SetPosition(const glm::vec2& position);
 
@@ -67,7 +68,6 @@ public:
     void ClimbIdle();
     void JumpStart(); // 這個函式專門負責觸發跳躍狀態，並初始化相關變數
     void Jump();
-    void Land(float floorY); // 新增：著地處理
     void Fall();
     void WaitForHammer();
     void Hammer();
@@ -82,10 +82,11 @@ public:
     void SetScreenBounds(float halfWidth, float halfHeight);
 
     const float marioScale = 2.5F;  // Mario 的縮放比例
-    const float movingStep = 2.0F;  // 走路與跳躍速度
+    const float movingStep = 2.0F;  // 走路速度
     const float climbingStep = 1.0F; // 攀爬速度
     bool IsJumping() const { return m_IsJumping; }
-    float GetJumpTimer() const { return m_JumpTimer; } // 新增：取得跳躍計時器
+
+    [[nodiscard]] bool CanClimbDown(const std::shared_ptr<Map>& map) const;
 
 private:
     // 將所有動作圖層封裝在這裡：
@@ -104,6 +105,7 @@ private:
     MarioState m_CurrentState = MarioState::IDLE;
     glm::vec2 m_Position;
     glm::vec2 m_LastPosition = {0.0f, 0.0f}; // 儲存上一個安全的位置
+    float m_CurrentFloorY = 0.0f;
 
     MarioDIR m_Direction = MarioDIR::RIGHT;
     MarioDIR m_BackupDirection = MarioDIR::RIGHT; // for jump direction backup (when jump is vertical, use the last walking direction)
@@ -116,11 +118,17 @@ private:
 
     glm::vec2 m_JumpStartPosition;
 
+    float m_VelocityY = 0.0f;           // Y 軸的速度 (正: 上升, 負: 下降)
+    const float m_Gravity = 2500.0f;    // 重力加速度 (數字可依手感調整)
+    const float m_JumpForce = 800.0f;   // 跳躍的初始力量
+
     glm::vec2 m_DonkeyKongPos = {0.0f, 0.0f}; // Donkey Kong 的位置
     glm::vec2 m_DonkeyKongSize = {0.0f, 0.0f}; // Donkey Kong 的尺寸
 
     float m_ScreenHalfWidth = 0.0f;
     float m_ScreenHalfHeight = 0.0f;
+
 };
+
 
 #endif // MARIO_HPP
