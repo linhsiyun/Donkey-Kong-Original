@@ -14,6 +14,7 @@
 // 地面上的槌子道具物件
 static std::shared_ptr<Character> m_HammerItem;
 static std::shared_ptr<Character> m_HammerItem2;
+static std::shared_ptr<Character> m_StaticBarrels;
 
 void App::LoadLevel(int level) {
     m_CurrentLevel = level;
@@ -34,7 +35,13 @@ void App::LoadLevel(int level) {
         m_Fireball->SetPosition({-100.0f, -70.0f});
         if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -135.0f});
         if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 80.0f, halfHeight - 180.0f});
-        m_DonkeyKong->SetPosition({-halfWidth + 80.0f, halfHeight - 100.0f});
+        if (m_StaticBarrels) {
+            // 將木桶堆放在 Donkey Kong 左側的平台上
+            m_StaticBarrels->SetPosition({-halfWidth + 35.0f, halfHeight - 110.0f});
+        }
+
+        m_DonkeyKong->SetPosition({-halfWidth + 120.0f, halfHeight - 100.0f});
+        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::STATIONARY_LOOKING);
 
     } else if (m_CurrentLevel == 2) {
         m_Map->LoadNewMap("../Resources/Images/board-conveyors.png", "../Resources/Maps/Map2.txt");
@@ -50,19 +57,38 @@ void App::LoadLevel(int level) {
         m_Fireball->SetPosition({-100.0f, -70.0f});
         if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
         if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
-        m_DonkeyKong->SetPosition({-halfWidth + 180.0f, halfHeight - 100.0f});
+
+        // 設定第二關 DK 會左右移動且只會搥胸
+        m_DonkeyKong->SetPosition({-halfWidth + 110.0f, halfHeight - 110.0f});
+        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
+        m_DonkeyKong->SetMoveBounds(-halfWidth + 110.0f, halfWidth - 110.0f);
+
     } else if (m_CurrentLevel == 3) {
         m_Map->LoadNewMap("../Resources/Images/board-elevators.png", "../Resources/Maps/Map3.txt");
 
         //TODO
         m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
+
+        // 設定第三關 DK 只會搥胸
+        m_DonkeyKong->SetPosition({-halfWidth + 120.0f, halfHeight - 110.0f});
+        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
+        m_DonkeyKong->SetMoveBounds(-halfWidth + 120.0f, -halfWidth + 120.0f);
+
     } else if (m_CurrentLevel == 4) {
         m_Map->LoadNewMap("../Resources/Images/board-rivets.png", "../Resources/Maps/Map4.txt");
 
         //TODO
         m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
+
+        // 設定第四關 DK 只會搥胸
+        m_DonkeyKong->SetPosition({0.0f, halfHeight - 110.0f});
+        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
+        m_DonkeyKong->SetMoveBounds(0.0f, 0.0f);
     }
     LOG_INFO("map halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
+
+    // 只有在第一關時顯示固定木桶堆，其餘關卡隱藏
+    if (m_StaticBarrels) m_StaticBarrels->SetVisible(m_CurrentLevel == 1);
 
     // 2. 清除畫面上現有的所有酒桶
     for (auto& barrel : m_Barrels) {
@@ -125,6 +151,13 @@ void App::Start() {
     m_HammerItem2->SetScale({m_Mario->marioScale, m_Mario->marioScale});
     m_Renderer.AddChild(m_HammerItem2);
 
+    // 初始化第一關背景中的固定酒桶堆 (位於 Donkey Kong 旁邊)
+    m_StaticBarrels = std::make_shared<Character>(RESOURCE_DIR"/Images/barrel00.png");
+    m_StaticBarrels->SetScale({m_Mario->marioScale / 1.0f, m_Mario->marioScale / 1.0f});
+    m_StaticBarrels->SetZIndex(40); // 確保在角色層級之後
+    m_Renderer.AddChild(m_StaticBarrels);
+
+
     // 初始化text物件
     m_HUDText = std::make_shared<HUDManager>();
     m_HUDText->Init();
@@ -142,6 +175,20 @@ void App::Start() {
     });
 #endif
     m_Renderer.AddChild(m_DonkeyKong);
+
+    // 初始化搥擊特效動畫 (1-2-3-1-2-3-pop)
+    m_SmashEffect = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+        RESOURCE_DIR"/Images/bubble1.png", RESOURCE_DIR"/Images/bubble2.png",
+        RESOURCE_DIR"/Images/bubble3.png", RESOURCE_DIR"/Images/bubble1.png",
+        RESOURCE_DIR"/Images/bubble2.png", RESOURCE_DIR"/Images/bubble3.png",
+        RESOURCE_DIR"/Images/bubble_pop.png"
+    });
+    m_SmashEffect->SetZIndex(70); // 高於角色
+    m_SmashEffect->SetScale({3.0f, 3.0f});
+    m_SmashEffect->SetVisible(false);
+    m_SmashEffect->SetLooping(false);
+    m_SmashEffect->SetInterval(150); // 加快速度，每幀 150ms (總長約 1050ms)
+    m_Renderer.AddChild(m_SmashEffect);
 
     // 載入當前關卡 (這會負責載入地圖、設定角色的初始位置與重置狀態，也處理 DonkeyKong 給 Mario 的邊界傳遞)
     LoadLevel(m_CurrentLevel);
@@ -181,6 +228,16 @@ void App::SpawnBarrel() {
     m_Renderer.AddChild(newBarrel);
 }
 
+void App::TriggerSmash(glm::vec2 position, int score) {
+    m_HUDText->AddScore(score);
+    m_SmashEffect->SetPosition(position);
+    m_SmashEffect->SetVisible(true);
+    m_SmashEffect->Stop(); // 重置到第一幀
+    m_SmashEffect->Play();
+    m_FreezeTimer = 1500.0f; // 調整為凍結 1.5 秒
+    LOG_DEBUG("SMASH TRIGGERED at ({}, {})", position.x, position.y);
+}
+
 void App::Update() {
 
 #if 1  //sdbg: 按下 N 鍵切換到下一關測試, 按下 R 鍵 reset
@@ -216,6 +273,17 @@ void App::Update() {
 
     // 告訴渲染器，把所有 AddChild 進來的物件畫到畫面上 (包含你的地圖)
     if (isPlaying) {
+        // 處理畫面凍結邏輯
+        if (m_FreezeTimer > 0.0f) {
+            m_FreezeTimer -= static_cast<float>(Util::Time::GetDeltaTimeMs());
+            if (m_FreezeTimer <= 0.0f) {
+                m_SmashEffect->SetVisible(false);
+            }
+            // 凍結期間只更新渲染器（讓特效動畫跑），不執行後續遊戲邏輯
+            m_Renderer.Update();
+            return;
+        }
+
 #if 1 //sdbg
         // 2. 更新 DonkeyKong (若停止更新，其產酒桶的回呼就不會觸發)
         if (m_DonkeyKong) {
@@ -234,10 +302,9 @@ void App::Update() {
 
             if (barrel->IfCollides(m_Mario->GetPosition(), marioSize)) {
                 if (marioState == MarioState::HAMMERING) {
-                    LOG_DEBUG("BARREL DESTROYED BY HAMMER!");
+                    TriggerSmash(barrel->GetPosition(), 500);
                     m_Renderer.RemoveChild(barrel); // 從渲染器移除
                     it = m_Barrels.erase(it);       // 從清單移除
-                    m_HUDText->AddScore(500);
                     continue;                       // 跳過後續處理，直接檢查下一個酒桶
                 } else {
                     m_Mario->Dead();                // Mario 死亡
@@ -475,7 +542,7 @@ void App::Update() {
 
            if (m_Fireball->IfCollides(m_Mario->GetPosition(), marioSize)) {
                 if (m_Mario->GetState() == MarioState::HAMMERING) {
-                    m_HUDText->AddScore(800);
+                    TriggerSmash(m_Fireball->GetPosition(), 800);
                     m_Fireball->SetVisible(false); // 擊碎火球
                 } else {
                     m_Mario->Dead();

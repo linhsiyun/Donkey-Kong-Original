@@ -37,6 +37,17 @@ public:
         m_BarrelSpawnCallback = callback;
     }
 
+    // 設定 Donkey Kong 的行為模式
+    enum class Behavior {
+        STATIONARY_LOOKING,   // 原地搥胸 + 環顧 (Level 1)
+        MOVING_CHEST_BEATING  // 左右移動 + 只搥胸 (Level 2+)
+    };
+
+    void SetBehavior(Behavior behavior) { m_Behavior = behavior; }
+
+    // 設定左右移動的 X 軸邊界
+    void SetMoveBounds(float minX, float maxX) { m_MinX = minX; m_MaxX = maxX; }
+
 private:
     // 定義 DK 可能的兩種行為狀態
     enum class State {
@@ -45,6 +56,13 @@ private:
     };
 
     State m_State = State::CHEST_BEATING; // 一開始設定為搥胸狀態
+
+    // ===== 行為與移動參數 =====
+    Behavior m_Behavior = Behavior::STATIONARY_LOOKING;
+    float m_MinX = 0.0f;
+    float m_MaxX = 0.0f;
+    float m_MoveSpeed = 50.0f; // 像素/秒
+
 
     // ===== 計時器區域 (毫秒為單位) =====
     float m_ChestTimer = 0.0f;     // 追蹤搥胸每次圖片切換的間隔時間
