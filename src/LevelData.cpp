@@ -41,6 +41,12 @@ TileType LevelData::GetTile(int x, int y) const {
     return m_Grid[y][x];
 }
 
+void LevelData::SetTile(int x, int y, TileType type) {
+    if (y >= 0 && y < m_Grid.size() && x >= 0 && x < m_Grid[y].size()) {
+        m_Grid[y][x] = type;
+    }
+}
+
 int LevelData::GetWidth() const {
     return m_Grid.empty() ? 0 : m_Grid[0].size();
 }

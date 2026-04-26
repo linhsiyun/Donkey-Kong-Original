@@ -36,6 +36,38 @@ TileType Map::GetTileAtPosition(float worldX, float worldY) const {
 
     return m_LevelData.GetTile(gridX, gridY);
 }
+
+void Map::SetTileAtPosition(float worldX, float worldY, TileType type) {
+    if (m_LevelData.GetWidth() == 0 || m_LevelData.GetHeight() == 0) return;
+
+    float localX = worldX - mapTopLeftX;
+    float localY = mapTopLeftY - worldY;
+    int gridX = static_cast<int>(std::floor(localX / actualTileWidth));
+    int gridY = static_cast<int>(std::floor(localY / actualTileHeight));
+    
+    m_LevelData.SetTile(gridX, gridY, type);
+}
+
+glm::vec2 Map::GetTileWorldPosition(int gridX, int gridY) const {
+    // 計算該格子中心點的世界座標
+    float localX = (static_cast<float>(gridX) + 0.5f) * actualTileWidth;
+    float localY = (static_cast<float>(gridY) + 0.5f) * actualTileHeight;
+
+    return {mapTopLeftX + localX, mapTopLeftY - localY};
+}
+
+std::pair<int, int> Map::GetTileIndexAtPosition(float worldX, float worldY) const {
+    if (m_LevelData.GetWidth() == 0 || m_LevelData.GetHeight() == 0) return {-1, -1};
+
+    float localX = worldX - mapTopLeftX;
+    float localY = mapTopLeftY - worldY;
+    
+    int gridX = static_cast<int>(std::floor(localX / actualTileWidth));
+    int gridY = static_cast<int>(std::floor(localY / actualTileHeight));
+    
+    return {gridX, gridY};
+}
+
 void Map::LoadNewMap(const std::string& imagePath, const std::string& txtPath) {
     // 替換掉舊的圖片
     SetDrawable(std::make_shared<Util::Image>(imagePath));

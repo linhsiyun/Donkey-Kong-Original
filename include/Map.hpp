@@ -18,6 +18,15 @@ public:
     // 【新增】給未來角色的 API：輸入角色的 X, Y 像素座標，回傳他踩到什麼格子
     TileType GetTileAtPosition(float worldX, float worldY) const;
 
+    // 【新增】修改世界座標對應的地圖格子
+    void SetTileAtPosition(float worldX, float worldY, TileType type);
+
+    // 【新增】將網格座標 (x, y) 轉換為世界像素座標 (Center)
+    glm::vec2 GetTileWorldPosition(int gridX, int gridY) const;
+
+    // 【新增】取得指定世界座標對應的網格索引 (用於地圖修改)
+    std::pair<int, int> GetTileIndexAtPosition(float worldX, float worldY) const;
+
     // 用來在遊戲途中切換地圖的 API
     void LoadNewMap(const std::string& imagePath, const std::string& txtPath);
 
