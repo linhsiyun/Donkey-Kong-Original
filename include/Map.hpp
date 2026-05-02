@@ -36,6 +36,9 @@ public:
     float GetTileWidth() const { return actualTileWidth; }
     float GetTileHeight() const { return actualTileHeight; }
 
+    // 取得地圖目前的縮放比例
+    const glm::vec2& GetScale() const { return m_Transform.scale; }
+
 private:
     LevelData m_LevelData;
     void AutoScale();

@@ -16,6 +16,7 @@
 #include "Mario.hpp"
 #include "Fiamma.hpp"
 #include "HUDManager.hpp"
+#include "Elevator.hpp"
 #include "DonkeyKong.hpp"
 #include "Barrel.hpp"
 
@@ -59,6 +60,7 @@ private:
     std::shared_ptr<Fiamma> m_Fireball;
     std::shared_ptr<HUDManager> m_HUDText;
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
+    std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
     std::vector<std::shared_ptr<Barrel>> m_Barrels; // 儲存所有畫面上的酒桶
     std::shared_ptr<AnimatedCharacter> m_SmashEffect; // 搥擊特效動畫
     std::shared_ptr<Character> m_BlackCover; // 【新增】通關時遮住中間結構的黑色方塊
@@ -68,6 +70,7 @@ private:
 
     // 定義當前的關卡編號
     int m_CurrentLevel = 1;
+    int m_CurrentStage = 1;
     float m_FreezeTimer = 0.0f; // 畫面凍結計時器
     float m_DKFallTimer = 0.0f; // 【新增】DK 下墜旋轉計時器
     int m_RivetCount = 0;       // 【新增】剩餘插銷數量

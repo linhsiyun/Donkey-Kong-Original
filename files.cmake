@@ -8,6 +8,7 @@ set(SRC_FILES
     Barrel.cpp
     Map.cpp
     LevelData.cpp
+    Elevator.cpp
 )
 
 set(INCLUDE_FILES
@@ -22,6 +23,7 @@ set(INCLUDE_FILES
     Map.hpp
     LevelData.hpp
     TileType.hpp
+    Elevator.hpp
 )
 
 set(TEST_FILES
