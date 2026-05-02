@@ -133,6 +133,9 @@ void Mario::SetState(MarioState newState) {
 }
 
 void Mario::IDLE() {
+    // 狀態保護：如果已經死亡或獲勝，不允許回到普通待機狀態
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     if (m_CurrentState != MarioState::IDLE && m_CurrentState != MarioState::HAMMERING) {
         LOG_DEBUG("IDLE");
         if (m_Direction == MarioDIR::LEFT) {
@@ -148,6 +151,8 @@ void Mario::IDLE() {
 // Walk() 處理 Walking and Hammering 時的水平移動。
 // 這裡只管「座標」(m_Position) 與「方向狀態」(m_Direction), 圖片的反轉（SetScale）由 Update() 處理。
 void Mario::Walk(MarioDIR dir) {
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     // TODO: 偵測邊界，如果有邊界的話就不能再往那個方向移動了 ...
     if (dir == MarioDIR::LEFT) {
         m_Position.x -= movingStep;
@@ -169,6 +174,8 @@ void Mario::Walk(MarioDIR dir) {
 }
 
 void Mario::Climb(CLIMB_DIR dir) {
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     // TODO: 偵測邊界，如果有邊界的話就不能再往那個方向移動了 ...
 
     // 只有在非槌子狀態下才允許位移與切換攀爬動畫
@@ -195,6 +202,8 @@ void Mario::Climb(CLIMB_DIR dir) {
 }
 
 void Mario::ClimbIdle() {
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     if (m_CurrentState != MarioState::CLIMB_IDLE) {
         LOG_DEBUG("CLIMB_IDLE");
         SetState(MarioState::CLIMB_IDLE);
@@ -203,6 +212,8 @@ void Mario::ClimbIdle() {
 }
 
 void Mario::JumpStart() {
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     if (!m_IsJumping && m_CurrentState != MarioState::HAMMERING) {
         LOG_DEBUG("JUMPSTART");
         m_IsJumping = true;
@@ -236,6 +247,8 @@ void Mario::JumpStart() {
 }
 
 void Mario::Jump() {
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     // 設定跳躍參數 (後續可以修改這裡的數值)
     const float totalJumpTime = 35.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
     const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的兩倍
@@ -271,6 +284,8 @@ void Mario::Land(float floorY) {
 
 // WALKING/JUMPING -> FALLING
 void Mario::Fall(){
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     if (m_CurrentState != MarioState::FALLING) {
         LOG_DEBUG("FALLING");
         m_IsJumping = false;
@@ -284,6 +299,8 @@ void Mario::WaitForHammer(){
 }
 
 void Mario::Hammer() {
+    if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
     if (m_CurrentState != MarioState::DEAD) {
         LOG_DEBUG("HAMMER TIME! (10 SECONDS)");
         m_HammerTimer = 10.0f * 60.0f; // 假設 60 FPS，總共 900 幀
@@ -302,6 +319,7 @@ void Mario::Dead() {
     if (m_CurrentState != MarioState::DEAD) {
         LOG_DEBUG("DEAD SEQUENCE START");
         m_DeadTimer = 0.0f;
+        m_IsJumping = false; // 死亡時停止跳躍物理計算
         SetState(MarioState::DEAD);
         m_Dead->Stop(); // 確保回到第一幀 (end1.png)
     }
@@ -309,6 +327,7 @@ void Mario::Dead() {
 
 void Mario::Win() {
     LOG_DEBUG("WIN");
+    m_IsJumping = false; // 獲勝時停止跳躍物理計算
     SetState(MarioState::WIN);
     //TODO: 這裡可以加入一些特殊邏輯，例如在 WIN 狀態下不能移動或跳躍，或者有個專屬的過場動畫等等
 }
@@ -443,6 +462,7 @@ void Mario::Update() {
 
         if (collideX && collideY) {
             m_Position = m_LastPosition; // 發生重疊，退回上一個合法的位置
+            LOG_DEBUG("Mario collided with Donkey Kong");
         }
     }
 

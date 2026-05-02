@@ -14,6 +14,9 @@ public:
     // 給未來的碰撞系統查詢用的 API
     TileType GetTile(int x, int y) const;
 
+    // 【新增】修改特定座標的格子類型
+    void SetTile(int x, int y, TileType type);
+
     int GetWidth() const;
     int GetHeight() const;
 

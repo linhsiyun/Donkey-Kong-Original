@@ -3,12 +3,16 @@
 #include "Util/Animation.hpp" // 需要透過它來手動控制圖片的幀數
 #include <cstdlib>            // 用於 rand() 隨機函式的實作
 
+// 定義搥胸循環序列
+static const int chestSequence[] = {0, 0, 0, 0, 2, 1, 2, 0};
+
 // =============================================
 // 建構子：接收圖片路徑並初始化初始狀態與計時
 // 初始化內部的圖片序列 (DK1.png ~ DK5.png)
 // =============================================
 DonkeyKong::DonkeyKong()
     : AnimatedCharacter({
+          RESOURCE_DIR"/Images/DK0.png",
           RESOURCE_DIR"/Images/DK1.png",
           RESOURCE_DIR"/Images/DK2.png",
           RESOURCE_DIR"/Images/DK3.png",
@@ -24,6 +28,12 @@ DonkeyKong::DonkeyKong()
 #else
     m_NextLookTime = 1;
 #endif
+
+    // 初始化第一幀為序列的第一個動作
+    m_CurrentChestFrame = 0;
+    if (auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable)) {
+        anim->SetCurrentFrame(chestSequence[0]);
+    }
 }
 
 // =============================================
@@ -49,6 +59,37 @@ void DonkeyKong::Update() {
     auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
     if (!anim) return; // 保護機制，如果沒抓到就不執行，避免程式崩潰
 
+
+    // --- 移動邏輯: 移動搥胸模式 ---
+    if (m_Behavior == Behavior::MOVING_CHEST_BEATING) {
+        glm::vec2 pos = GetPosition();
+        pos.x += m_MoveSpeed * (dt / 1000.0f);
+
+        // 邊界檢查與反轉方向
+        if (pos.x > m_MaxX) {
+            pos.x = m_MaxX;
+            m_MoveSpeed *= -1.0f;
+        } else if (pos.x < m_MinX) {
+            pos.x = m_MinX;
+            m_MoveSpeed *= -1.0f;
+        }
+        SetPosition(pos);
+
+        m_ChestTimer += dt; // 用來切換搥胸圖片的計時器
+
+        // 每隔 500ms 依照指定序列 {0, 0, 0, 0, 2, 1, 2, 0} 切換圖片
+        if (m_ChestTimer >= 450.0f) {
+            m_ChestTimer = 0.0f; // 重置內部的小計時器
+
+            // 在 0~7 之間循環索引
+            m_CurrentChestFrame = (m_CurrentChestFrame + 1) % 8;
+            anim->SetCurrentFrame(chestSequence[m_CurrentChestFrame]);
+        }
+        return;
+    }
+
+
+    // --- 移動邏輯: Behavior::STATIONARY_LOOKING
     // --- 根據目前的狀態進入不同邏輯 ---
     if (m_State == State::CHEST_BEATING) {
 
@@ -57,11 +98,11 @@ void DonkeyKong::Update() {
         m_ChestTimer += dt; // 用來切換搥胸圖片的計時器
         m_StateTimer += dt; // 統計已停留在這個狀態多久的計時器
 
-        // 1. 每隔 250ms 在 DK1.png(0) 和 DK2.png(1) 之間切換圖片，形成搥胸動畫
+        // 1. 每隔 250ms 在 DK1.png(1) 和 DK2.png(2) 之間切換圖片，形成搥胸動畫
         if (m_ChestTimer >= 250.0f) {
             m_ChestTimer = 0.0f; // 重置內部的小計時器
             // 將畫面的圖片切成另一張（0 就換 1，1 就換 0）
-            m_CurrentChestFrame = (m_CurrentChestFrame == 0) ? 1 : 0;
+            m_CurrentChestFrame = (m_CurrentChestFrame == 1) ? 2 : 1;
             anim->SetCurrentFrame(m_CurrentChestFrame);
         }
 
@@ -77,8 +118,8 @@ void DonkeyKong::Update() {
             m_LookTimer = 0.0f;
             m_LookIndex = 0; // 0: 代表第一張環顧圖(DK3.png 向左看)
 
-            // 設定顯示圖為向左看 (因為 0, 1 是搥胸圖，所以 2 是左邊)
-            anim->SetCurrentFrame(2);
+            // 設定顯示圖為向左看 (因為 1, 2 是搥胸圖，所以 3 是左邊)
+            anim->SetCurrentFrame(3);
         }
     }
     else if (m_State == State::LOOKING) {
@@ -95,12 +136,12 @@ void DonkeyKong::Update() {
             m_LookIndex++;
 
             if (m_LookIndex == 1) {
-                // 進入第二階段：向前看 (DK4.png - 索引3)
-                anim->SetCurrentFrame(3);
+                // 進入第二階段：向前看 (DK4.png - 索引4)
+                anim->SetCurrentFrame(4);
             }
             else if (m_LookIndex == 2) {
-                // 進入第三階段：向右看 (DK5.png - 索引4)
-                anim->SetCurrentFrame(4);
+                // 進入第三階段：向右看 (DK5.png - 索引5)
+                anim->SetCurrentFrame(5);
 
                 // --- 核心互動：當向右看時，觸發產出下一個障礙物 (酒桶) ---
 #if 1 // TODO
@@ -119,7 +160,7 @@ void DonkeyKong::Update() {
 
                 // 將圖片索引與畫面上呈現的圖歸零，變回預設的第一張搥胸圖 (DK1.png)
                 m_CurrentChestFrame = 0;
-                anim->SetCurrentFrame(0);
+                anim->SetCurrentFrame(1);
 
                 // 為了讓動作看起來自然，再次決定下一次要搥胸多少時間才會進入環顧
                 m_NextLookTime = GetRandomChestBeatingDuration();
