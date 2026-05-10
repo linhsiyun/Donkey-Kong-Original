@@ -11,7 +11,7 @@
 //#include "Character.hpp"
 //not used, #include "Util/Text.hpp"
 //not used, #include "PhaseResourceManger.hpp"
-//#include "AnimatedCharacter.hpp"
+#include "AnimatedCharacter.hpp"
 
 #include "Mario.hpp"
 #include "Fiamma.hpp"
@@ -19,6 +19,7 @@
 #include "Elevator.hpp"
 #include "DonkeyKong.hpp"
 #include "Barrel.hpp"
+#include "CementPan.hpp"
 
 class App {
 public:
@@ -45,6 +46,7 @@ private:
     // 新增：將原本在 lambda 裡面的木桶生成邏輯抽出來變成 App 的成員函式
     void SpawnBarrel();
     void UpdateBarrels(MarioState marioState);
+    void UpdateCementPans();
     void TriggerSmash(glm::vec2 position, int score);
 
     Util::Renderer m_Renderer;
@@ -62,8 +64,19 @@ private:
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
     std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
     std::vector<std::shared_ptr<Barrel>> m_Barrels; // 儲存所有畫面上的酒桶
+    std::vector<std::shared_ptr<CementPan>> m_CementPans; // 儲存所有水泥塊
     std::shared_ptr<AnimatedCharacter> m_SmashEffect; // 搥擊特效動畫
     std::shared_ptr<Character> m_BlackCover; // 【新增】通關時遮住中間結構的黑色方塊
+    std::shared_ptr<Character> m_LeftMask;   // 【新增】遮住左側地圖外的黑色遮罩
+    std::shared_ptr<Character> m_RightMask;  // 【新增】遮住右側地圖外的黑色遮罩
+
+    // 【新增】公主精靈與動畫控制參數
+    std::shared_ptr<AnimatedCharacter> m_Princess;
+    float m_PrincessTimerMs = 5000.0f; // 每 5s 觸發一次動畫
+    float m_PrincessAnimTimerMs = 0.0f; // 動畫內部切換計時器
+    int m_PrincessToggleCount = 0;     // 幫助圖切換計數 (切換次數)
+    bool m_PrincessAnimating = false;  // 目前是否正在執行切換動畫
+    glm::vec2 m_PrincessRefSize = {0.0f, 0.0f}; // 參考幀尺寸，用於統一顯示大小
 
     float halfWidth;
     float halfHeight;

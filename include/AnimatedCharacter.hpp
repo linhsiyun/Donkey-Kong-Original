@@ -47,6 +47,12 @@ public:
         temp->Play();
     }
 
+    // 設定目前顯示的幀
+    void SetCurrentFrame(std::size_t index) {
+        auto temp = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
+        temp->SetCurrentFrame(index);
+    }
+
 #if 1 // copied from Character.hpp
     // 取得角色目前在畫面上的二維位置座標
     [[nodiscard]] const glm::vec2& GetPosition() const { return m_Transform.translation; }
