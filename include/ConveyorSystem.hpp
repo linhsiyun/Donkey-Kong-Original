@@ -36,7 +36,6 @@ public:
     float GetVelocity(TileType type) {
         if (m_Belts.find(type) != m_Belts.end())
         {
-            LOG_INFO("cj0 {} {} {}", (int)type, m_Belts[type].speed, m_Belts[type].direction);
             return m_Belts[type].speed * m_Belts[type].direction;
         }
         return 0.0f;

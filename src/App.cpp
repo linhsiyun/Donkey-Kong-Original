@@ -170,14 +170,27 @@ void App::UpdateBarrels(MarioState marioState) {
 /**
  * @brief 更新水泥塊邏輯更新器。
  */
-void App::UpdateCementPans() {
+void App::UpdateCementPans(MarioState marioState) {
+
     for (auto it = m_CementPans.begin(); it != m_CementPans.end(); ) {
         auto& pan = *it;
         pan->Update(m_Map, m_ConveyorSystem); // 執行物理與位移
 
         // 碰撞偵測 (Mario)
-        if (pan->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
-            m_Mario->Dead();
+        glm::vec2 marioSize = m_Mario->GetSize();
+        if (marioState == MarioState::HAMMERING) marioSize *= 1.8f;
+
+        if (pan->IfCollides(m_Mario->GetPosition(), marioSize)) {
+            if (marioState == MarioState::HAMMERING) {
+                // 搥擊成功：觸發特效、加分，並移除水泥塊
+                TriggerSmash(pan->GetPosition(), 500);
+                m_Renderer.RemoveChild(pan);
+                it = m_CementPans.erase(it);
+                continue;
+            } else {
+                // 碰撞失敗：Mario 死亡
+                m_Mario->Dead();
+            }
         }
 
         // 邊界檢查：掉出畫面外則銷毀
@@ -224,16 +237,17 @@ void App::TriggerSmash(glm::vec2 position, int score) {
 void App::LoadLevel(int level) {
 
     m_CurrentLevel = level;
-    m_CurrentStage = level % 4;
-    if (m_CurrentStage == 0)
-        m_CurrentStage = 4;
+    int stageNum = level % 4;
+    if (stageNum == 0)
+        stageNum = 4;
+    m_CurrentStage = static_cast<Stage>(stageNum);
 
     // 每次載入關卡前先清除舊酒桶(Stage 1)，確保場景完全重置
     for (auto& barrel : m_Barrels) m_Renderer.RemoveChild(barrel);
     m_Barrels.clear();
 
     // 只有在第一關時顯示固定木桶堆，其餘關卡隱藏。將此邏輯移至開頭以統一管理物件狀態。
-    if (m_StaticBarrels) m_StaticBarrels->SetVisible(m_CurrentStage == 1);
+    if (m_StaticBarrels) m_StaticBarrels->SetVisible(m_CurrentStage == Stage::BARRELS);
 
     // 每次載入關卡前先清除舊電梯(Stage 3)，確保畫面上不會殘留電梯踏板
     for (auto& el : m_Elevators) m_Renderer.RemoveChild(el);
@@ -285,7 +299,7 @@ void App::LoadLevel(int level) {
 
     // 根據傳入的關卡編號，載入對應的地圖圖片與純文字檔 (MapX.txt)
     // 同時把所有物件 (Mario, 火球, 道具, 大金剛) 移動到該關卡適合的座標
-    if (m_CurrentStage == 1) {
+    if (m_CurrentStage == Stage::BARRELS) {
         m_Map->LoadNewMap("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
 
         halfWidth = m_Map->GetMapWidth() / 2.0f;
@@ -310,7 +324,7 @@ void App::LoadLevel(int level) {
             m_Princess->SetPosition({0.0f, halfHeight - 35});
         }
 
-    } else if (m_CurrentStage == 2) {
+    } else if (m_CurrentStage == Stage::CONVEYORS) {
         m_Map->LoadNewMap("../Resources/Images/board-conveyors.png", "../Resources/Maps/Map2.txt");
 
         halfWidth = m_Map->GetMapWidth() / 2.0f;
@@ -363,7 +377,7 @@ void App::LoadLevel(int level) {
             m_Princess->SetPosition({0.0f, halfHeight - 35});
         }
 
-    } else if (m_CurrentStage == 3) {
+    } else if (m_CurrentStage == Stage::ELEVATORS) {
         m_Map->LoadNewMap("../Resources/Images/board-elevators.png", "../Resources/Maps/Map3.txt");
         halfWidth = m_Map->GetMapWidth() / 2.0f;
         halfHeight = m_Map->GetMapHeight() / 2.0f;
@@ -404,7 +418,7 @@ void App::LoadLevel(int level) {
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
-    } else if (m_CurrentStage == 4) {
+    } else if (m_CurrentStage == Stage::RIVETS) {
         m_Map->LoadNewMap("../Resources/Images/board-rivets.png", "../Resources/Maps/Map4.txt");
         halfWidth = m_Map->GetMapWidth() / 2.0f;
         halfHeight = m_Map->GetMapHeight() / 2.0f;
@@ -594,7 +608,7 @@ void App::Update() {
     if (marioState == MarioState::WIN) {
 
         // --- Stage 4 特有的通關動畫：中間垮掉，DK 掉下去 ---
-        if (m_CurrentStage == 4) {
+        if (m_CurrentStage == Stage::RIVETS) {
             m_BlackCover->SetVisible(true);
             m_BlackCover->SetPosition({0.0f, -45.0f}); // 根據地圖位置調整，遮住中間結構
 
@@ -638,33 +652,6 @@ void App::Update() {
             m_Renderer.Update();
             return;
         }
-
-        // 更新傳送帶系統與 Spawner
-        if (m_CurrentStage == 2 && m_ConveyorSystem) {
-            float dtMs = static_cast<float>(Util::Time::GetDeltaTimeMs());
-            m_ConveyorSystem->Update(dtMs);
-
-            // 檢查 Spawners 是否要生成新的水泥塊
-            for (auto& spawner : m_CementSpawners) {
-                int dir = m_ConveyorSystem->GetDirection(spawner->GetTargetBelt());
-                if (spawner->ShouldSpawn(dtMs, dir)) {
-                    // 生成時傳入該 Spawner 對應的傳送帶類型
-                    auto newPan = std::make_shared<CementPan>(spawner->GetTargetBelt());
-                    newPan->SetPosition(spawner->GetPosition());
-                    m_CementPans.push_back(newPan);
-                    m_Renderer.AddChild(newPan);
-                }
-            }
-
-            UpdateCementPans();
-        }
-
-#if 1 //sdbg
-        // 2. 更新 DonkeyKong (若停止更新，其產酒桶的回呼就不會觸發)
-        if (m_DonkeyKong) {
-            m_DonkeyKong->Update();
-        }
-#endif
 
         // 更新公主計時與幀切換 (每 5 秒播放 Princess2/Princess3 來回切換兩次)
         if (m_Princess) {
@@ -716,13 +703,43 @@ void App::Update() {
             }
         }
 
-        // 更新電梯位移邏輯
-        for (auto& elevator : m_Elevators) {
-            elevator->Update();
+#if 1 //sdbg
+        // 2. 更新 DonkeyKong (若停止更新，其產酒桶的回呼就不會觸發)
+        if (m_DonkeyKong) {
+            m_DonkeyKong->Update();
+        }
+#endif
+        // 更新木桶邏輯
+        if (m_CurrentStage == Stage::BARRELS) {
+            UpdateBarrels(marioState);
         }
 
-        // 更新木桶邏輯
-        UpdateBarrels(marioState);
+        // 更新傳送帶系統與 Spawner
+        if (m_CurrentStage == Stage::CONVEYORS && m_ConveyorSystem) {
+            float dtMs = static_cast<float>(Util::Time::GetDeltaTimeMs());
+            m_ConveyorSystem->Update(dtMs);     // 更新傳送帶系統內部計時與方向狀態
+
+            // 檢查 Spawners 是否要生成新的水泥塊
+            for (auto& spawner : m_CementSpawners) {
+                int dir = m_ConveyorSystem->GetDirection(spawner->GetTargetBelt());
+                if (spawner->ShouldSpawn(dtMs, dir)) {
+                    // 生成時傳入該 Spawner 對應的傳送帶類型
+                    auto newPan = std::make_shared<CementPan>(spawner->GetTargetBelt());
+                    newPan->SetPosition(spawner->GetPosition());
+                    m_CementPans.push_back(newPan);
+                    m_Renderer.AddChild(newPan);
+                }
+            }
+
+            UpdateCementPans(marioState);
+        }
+
+        // 更新電梯位移邏輯
+        if (m_CurrentStage == Stage::ELEVATORS) {
+            for (auto& elevator : m_Elevators) {
+                elevator->Update();
+            }
+        }
 
         // 在處理 Mario 的移動邏輯之前，先更新 Donkey Kong 的邊界資訊給 Mario
         m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
@@ -795,7 +812,7 @@ void App::Update() {
         //     否則，Mario 會停在原地，而電梯會直接「穿過」他的身體往上升，導致他瞬間變回懸空狀態。
         // marioFootY >= elTopY - 10.0f 提供了一個緩衝區，確保 Mario 在下墜過程中只要接近電梯頂部，
         //     就能被正確「吸附」上去，這能提供更流暢的操作感。
-        if (!foundSurface && m_CurrentStage == 3) {
+        if (!foundSurface && m_CurrentStage == Stage::ELEVATORS) {
             for (auto& el : m_Elevators) {
                 // 使用 AABB 碰撞初步判斷 Mario 是否觸碰到電梯踏板
                 if (el->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
@@ -826,7 +843,7 @@ void App::Update() {
         }
 
         // --- 處理 Rivet (Stage 4 特有邏輯：走完才移除) ---
-        if (m_CurrentStage == 4) {
+        if (m_CurrentStage == Stage::RIVETS) {
             if (m_Mario->IsJumping()) {
                 // 如果跳起來，就清除踩踏紀錄（跳躍不能拔插銷）
                 m_HasActiveRivet = false;
@@ -908,7 +925,7 @@ void App::Update() {
                     m_Mario->SetPosition({marioPos.x, targetFootY + (marioSize.y / 2.0f)});
 
                     // --- [新增] 傳送帶推力邏輯 ---
-                    if (m_CurrentStage == 2 && m_ConveyorSystem) {
+                    if (m_CurrentStage == Stage::CONVEYORS && m_ConveyorSystem) {
                         // 根據當前踩踏的 Tile 取得速度 (px/s)
                         float beltVelocity = m_ConveyorSystem->GetVelocity(currentMarioTile);
                         if (std::abs(beltVelocity) > 0.0f) {
@@ -962,11 +979,11 @@ void App::Update() {
             // 水平移動處理：只有在非攀爬（或在梯子底部/頂端）且非墜落狀態下才允許
             else if ((!isClimbing || foundSurface) && state != MarioState::FALLING) {
                 if (Util::Input::IsKeyPressed(Util::Keycode::LEFT)) {
-                m_Mario->Walk(MarioDIR::LEFT);
-            }
+                    m_Mario->Walk(MarioDIR::LEFT);
+                }
                 else if (Util::Input::IsKeyPressed(Util::Keycode::RIGHT)) {
-                m_Mario->Walk(MarioDIR::RIGHT);
-            }
+                    m_Mario->Walk(MarioDIR::RIGHT);
+                }
                 // 若目前正在走路但沒有按住方向鍵，且放開了按鍵，則進入 IDLE
                 else if (state == MarioState::WALKING) {
                     if (Util::Input::IsKeyUp(Util::Keycode::LEFT) ||

@@ -29,6 +29,13 @@ public:
         END,
     };
 
+    enum class Stage {
+        BARRELS = 1,
+        CONVEYORS = 2,
+        ELEVATORS = 3,
+        RIVETS = 4
+    };
+
     State GetCurrentState() const { return m_CurrentState; }
 
     void Start();
@@ -46,7 +53,7 @@ private:
     // 新增：將原本在 lambda 裡面的木桶生成邏輯抽出來變成 App 的成員函式
     void SpawnBarrel();
     void UpdateBarrels(MarioState marioState);
-    void UpdateCementPans();
+    void UpdateCementPans(MarioState marioState);
     void TriggerSmash(glm::vec2 position, int score);
 
     Util::Renderer m_Renderer;
@@ -83,7 +90,7 @@ private:
 
     // 定義當前的關卡編號
     int m_CurrentLevel = 1;
-    int m_CurrentStage = 1;
+    Stage m_CurrentStage = Stage::BARRELS;
     float m_FreezeTimer = 0.0f; // 畫面凍結計時器
     float m_DKFallTimer = 0.0f; // 【新增】DK 下墜旋轉計時器
     int m_RivetCount = 0;       // 【新增】剩餘插銷數量
