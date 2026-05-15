@@ -92,9 +92,6 @@ HUDManager::HUDManager() {
     barrelCountObject->SetZIndex(100);
     barrelCountObject->m_Transform.translation = {-halfWidth + 95.0f, halfHeight - 100.0f};
     barrelCountObject->SetVisible(true);
-
-    // 必須在所有物件 (scoreText 等) 都初始化完成後，才能呼叫 Init()
-    Init();
 }
 
 void HUDManager::Init() {
@@ -149,9 +146,4 @@ void HUDManager::ResetBonus(int amount) {
     bonusTime = amount;
     bonusTimer = 0.0f;
     bonusText->SetText(FormatInt(bonusTime, 4));
-}
-
-void HUDManager::SetLevel(int level) {
-    this->level = level;
-    levelText->SetText("L=" + FormatInt(level, 2));
 }
