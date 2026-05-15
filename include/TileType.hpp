@@ -6,7 +6,8 @@ enum class TileType {
     EMPTY = 0,
     FLOOR = 1,
     LADDER = 2,
-    BROKEN_LADDER = 3
+    BROKEN_LADDER = 3,
+    RIVET = 4,
 
 };
 
