@@ -30,6 +30,8 @@ void App::SpawnBarrel() {
     // 建構 (construct) 一個新的酒桶
     auto newBarrel = std::make_shared<Barrel>(Barrel::State::ROLLING, Barrel::Direction::RIGHT);
 
+    // 讓木桶持有地圖指標，這樣它在 Barrel::Update() 裡才能呼叫 GetTileAtPosition
+    newBarrel->SetMap(m_Map);
     // 1. 必須先設定縮放，後續呼叫 GetSize() 才能取得縮放後的正確尺寸
     newBarrel->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
     newBarrel->SetZIndex(40);
@@ -41,11 +43,13 @@ void App::SpawnBarrel() {
 
     // 3. 計算「腳邊」座標
     // X 軸：放在大金剛中心點右側，加上兩者寬度的一半再加上一點間隙 (5.0f)
-    float spawnX = dkPos.x + (dkSize.x / 2.0f) + 5.0f;
+    float spawnX = dkPos.x + (dkSize.x / 2.0f) + 10.0f;
     // Y 軸：大金剛的腳底 (dkPos.y - dkSize.y/2) 加上酒桶的一半高度，使其底部齊平
     float spawnY = (dkPos.y - (dkSize.y / 2.0f)) + (barrelSize.y / 2.0f);
 
     newBarrel->SetPosition({spawnX, spawnY});
+    // 告知木桶：你現在就在這個高度，不要拿 0.0 跟我算高低差
+    newBarrel->ResetFallHeight(spawnY);
 
     // 將酒桶暫存在清單維護並加入畫面繪製的根節點
     m_Barrels.push_back(newBarrel);
@@ -64,98 +68,29 @@ void App::SpawnBarrel() {
  */
 void App::UpdateBarrels(MarioState marioState) {
     // 使用迭代器遍歷酒桶清單，以便在迴圈中安全地刪除物件
-    for (auto it = m_Barrels.begin(); it != m_Barrels.end(); ) {
-        auto& barrel = *it;
-        barrel->Update(); // 執行酒桶內部的位移與動畫幀更新
+    for (auto& barrel : m_Barrels) {
+        // 1. 呼叫木桶自己的更新邏輯 (包含滾動、掉落、地圖偵測)
+        barrel->Update();
 
-        // --- 1. 碰撞偵測：Mario 與酒桶 ---
-        glm::vec2 marioSize = m_Mario->GetSize();
-        // 如果 Mario 正在揮舞槌子，擴大他的有效判定範圍
-        if (marioState == MarioState::HAMMERING) marioSize *= 1.8f;
-
-        if (barrel->IfCollides(m_Mario->GetPosition(), marioSize)) {
+        // 2. 檢查是否與 Mario 發生碰撞 (如果木桶還在畫面上的話)
+        if (barrel->GetVisibility()) {
+            // 根據 Mario 狀態調整碰撞框大小
+            glm::vec2 marioSize = m_Mario->GetSize();
             if (marioState == MarioState::HAMMERING) {
-                // 搥擊成功：觸發特效、加分，並移除酒桶
-                TriggerSmash(barrel->GetPosition(), 500);
-                m_Renderer.RemoveChild(barrel);
-                it = m_Barrels.erase(it); // erase 會回傳下一個有效的迭代器
-                continue; // 跳過後續邏輯，直接處理下一個酒桶
-            } else {
-                // 碰撞失敗：Mario 死亡
-                m_Mario->Dead();
+                marioSize *= 1.8f; // 拿槌子時攻擊範圍變大
             }
-        }
 
-        // --- 2. 地表偵測與物理吸附邏輯 ---
-        glm::vec2 pos = barrel->GetPosition();
-        glm::vec2 size = barrel->GetSize();
-
-        float barrelFootY = pos.y - (size.y / 2.0f); // 取得酒桶底部 Y 座標
-        float targetFootY = barrelFootY;
-        bool foundSurface = false;
-        const float tileH = m_Map->GetTileHeight();
-        const float searchRange = tileH * 1.5f; // 搜尋範圍設為 1.5 格，足以涵蓋斜坡落差
-
-        // [地表掃描]：判斷酒桶目前是站在地板上，還是懸空
-        // 採用你發現的邏輯：往下深探 1 像素，避免邊界判定誤差
-        TileType currentBarrelTile = m_Map->GetTileAtPosition(pos.x, barrelFootY - 1.0f);
-
-        if (currentBarrelTile == TileType::FLOOR || currentBarrelTile == TileType::RIVET) {
-            // 向上修正：如果酒桶稍微陷入地板，將其抬起至表面
-            for (float dy = 0.0f; dy <= searchRange; dy += 1.0f) {
-                TileType tile = m_Map->GetTileAtPosition(pos.x, barrelFootY + dy + 1.0f);
-                if (tile == TileType::EMPTY || tile == TileType::LADDER) {
-                    targetFootY = barrelFootY + dy;
-                    foundSurface = true;
-                    break;
+            // AABB 碰撞偵測
+            if (barrel->IfCollides(m_Mario->GetPosition(), marioSize)) {
+                if (marioState == MarioState::HAMMERING) {
+                    // Mario 拿著槌子：擊碎木桶
+                    TriggerSmash(barrel->GetPosition(), 500); // 隨機或固定給分
+                    barrel->SetVisible(false); // 標記為不可見，等待 App::Update 回收
+                } else {
+                    // Mario 沒拿槌子：死亡
+                    m_Mario->Dead();
                 }
             }
-        } else {
-            // 向下修正：處理下坡情況，讓酒桶「貼著」斜坡向下滾動
-            for (float dy = 0.0f; dy <= searchRange; dy += 1.0f) {
-                TileType tileBelow = m_Map->GetTileAtPosition(pos.x, barrelFootY - dy);
-                if (tileBelow == TileType::FLOOR || tileBelow == TileType::RIVET) {
-                    targetFootY = barrelFootY - dy + 1.0f; // 修正到地板上方
-                    foundSurface = true;
-                    break;
-                }
-            }
-        }
-
-        // 偵測酒桶正下方是否有梯子 (稍微往下探測 2 像素)
-        TileType footTile = m_Map->GetTileAtPosition(pos.x, targetFootY - 2.0f);
-
-        // --- 3. 狀態機切換邏輯 ---
-        if (barrel->GetState() == Barrel::State::ROLLING) {
-            if (!foundSurface) {
-                // 狀況 A：前方沒路了，進入邊緣墜落狀態
-                barrel->SetState(Barrel::State::FALLING_EDGE);
-            } else {
-                // 狀況 B：正常滾動，套用物理吸附修正座標
-                barrel->SetPosition({pos.x, targetFootY + (size.y / 2.0f)});
-                pos = barrel->GetPosition();
-                // 如果經過梯子，有機率 (25%) 決定往下掉
-                if (footTile == TileType::LADDER && rand() % 100 < 25) {
-                    barrel->SetState(Barrel::State::FALLING_LADDER);
-                }
-            }
-        }
-        else if (barrel->GetState() == Barrel::State::FALLING_EDGE ||
-                 barrel->GetState() == Barrel::State::FALLING_LADDER) {
-            if (foundSurface) {
-                // 狀況 C：掉落中碰到地板，恢復滾動狀態並反轉方向
-                barrel->SetState(Barrel::State::ROLLING);
-                barrel->SetDirection(barrel->GetDirection() == Barrel::Direction::RIGHT ?
-                                     Barrel::Direction::LEFT : Barrel::Direction::RIGHT);
-            }
-        }
-
-        // --- 4. 邊界檢查：超出畫面則銷毀 ---
-        if (std::abs(pos.x) > halfWidth + 50.0f || std::abs(pos.y) > halfHeight + 50.0f) {
-            m_Renderer.RemoveChild(barrel);
-            it = m_Barrels.erase(it);
-        } else {
-            ++it;
         }
     }
 }
@@ -190,165 +125,142 @@ void App::TriggerSmash(glm::vec2 position, int score) {
  * @param level 當前的關卡進度總數。
  */
 void App::LoadLevel(int level) {
-
     m_CurrentLevel = level;
     m_CurrentStage = level % 4;
-    if (m_CurrentStage == 0)
-        m_CurrentStage = 4;
+    if (m_CurrentStage == 0) m_CurrentStage = 4;
 
-    // 每次載入關卡前先清除舊酒桶(Stage 1)，確保場景完全重置
+    // --- 1. 全域資源清理與重置 ---
+    // 清除舊酒桶、電梯踏板與插銷，確保渲染器不會殘留上一關的物件
     for (auto& barrel : m_Barrels) m_Renderer.RemoveChild(barrel);
     m_Barrels.clear();
-
-    // 只有在第一關時顯示固定木桶堆，其餘關卡隱藏。將此邏輯移至開頭以統一管理物件狀態。
-    if (m_StaticBarrels) m_StaticBarrels->SetVisible(m_CurrentStage == 1);
-
-    // 每次載入關卡前先清除舊電梯(Stage 3)，確保畫面上不會殘留電梯踏板
     for (auto& el : m_Elevators) m_Renderer.RemoveChild(el);
     m_Elevators.clear();
-
-    // 每次載入關卡前先清除舊插銷(Stage 4)，確保畫面上不會殘留
     for (auto& pair : m_RivetVisuals) m_Renderer.RemoveChild(pair.second);
     m_RivetVisuals.clear();
 
-    // 重置通關特效與大金剛狀態 (確保從 Stage 4 勝利後切換或重玩時狀態正確)
+    // 重置特殊狀態標記
     if (m_BlackCover) m_BlackCover->SetVisible(false);
-    if (m_DonkeyKong) {
-        // 還原 DK 的縮放比例（恢復正向並重設尺寸）
-        m_DonkeyKong->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
-    }
-
-    // 重置 Stage 4 特有的邏輯標記 (移至開頭以確保不論從哪一關離開，狀態都乾淨)
+    m_Mario->SetState(MarioState::IDLE);
     m_ActiveRivetPos = {0.0f, 0.0f};
     m_HasActiveRivet = false;
     m_RivetCount = 0;
     m_DKFallTimer = 0.0f;
 
-    // 重置 Mario 以及其它遊戲角色的狀態與可見性 (移至開頭以統一管理)
-    m_Mario->SetState(MarioState::IDLE);
-#if 1 //sdbg
-    m_Fireball->SetVisible(true);
-#else
-    m_Fireball->SetVisible(false);
-#endif
-    if (m_HammerItem) m_HammerItem->SetVisible(true);
-    if (m_HammerItem2) m_HammerItem2->SetVisible(true);
-
-    // 重置 HUD 資訊
+    // 重置 HUD 分數與 Bonus
     if (m_HUDText) {
-        m_HUDText->Init();                  // 重置分數為 0 且 Bonus 為 5000
-        m_HUDText->SetLevel(m_CurrentLevel); // 更新畫面上的 L=XX 文字
+        m_HUDText->Init();
+        m_HUDText->SetLevel(m_CurrentLevel);
     }
 
-    // 根據傳入的關卡編號，載入對應的地圖圖片與純文字檔 (MapX.txt)
-    // 同時把所有物件 (Mario, 火球, 道具, 大金剛) 移動到該關卡適合的座標
+    // --- 2. 載入地圖資源 ---
+    // 必須先載入地圖，後續所有基於地圖縮放（Scale）的計算才會正確
+    std::string mapImg, mapTxt;
     if (m_CurrentStage == 1) {
-        m_Map->LoadNewMap("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
-
-        halfWidth = m_Map->GetMapWidth() / 2.0f;
-        halfHeight = m_Map->GetMapHeight() / 2.0f;
-
-        // 設定螢幕邊界，讓 Mario 的 Update 邏輯可以進行限制
-        m_Mario->SetScreenBounds(halfWidth, halfHeight);
-
-        // 第一關的各角色與道具初始位置
-        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
-        m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -135.0f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 80.0f, halfHeight - 180.0f});
-        if (m_StaticBarrels) {
-            // 將木桶堆放在 Donkey Kong 左側的平台上
-            m_StaticBarrels->SetPosition({-halfWidth + 35.0f, halfHeight - 110.0f});
-        }
-
-        m_DonkeyKong->SetPosition({-halfWidth + 120.0f, halfHeight - 100.0f});
-        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::STATIONARY_LOOKING);
-
+        mapImg = "../Resources/Images/board-barrels.png";
+        mapTxt = "../Resources/Maps/Map1.txt";
     } else if (m_CurrentStage == 2) {
-        m_Map->LoadNewMap("../Resources/Images/board-conveyors.png", "../Resources/Maps/Map2.txt");
-
-        halfWidth = m_Map->GetMapWidth() / 2.0f;
-        halfHeight = m_Map->GetMapHeight() / 2.0f;
-
-        // 設定螢幕邊界，讓 Mario 的 Update 邏輯可以進行限制
-        m_Mario->SetScreenBounds(halfWidth, halfHeight);
-
-        // 第二關的各角色與道具初始位置 (目前暫時設定與第一關相同，之後你可以自由調整這組座標)
-        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
-        m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
-
-        // 設定第二關 DK 會左右移動且只會搥胸
-        m_DonkeyKong->SetPosition({-halfWidth + 110.0f, halfHeight - 110.0f});
-        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
-        m_DonkeyKong->SetMoveBounds(-halfWidth + 110.0f, halfWidth - 110.0f);
-
+        mapImg = "../Resources/Images/board-conveyors.png";
+        mapTxt = "../Resources/Maps/Map2.txt";
     } else if (m_CurrentStage == 3) {
-        m_Map->LoadNewMap("../Resources/Images/board-elevators.png", "../Resources/Maps/Map3.txt");
-        halfWidth = m_Map->GetMapWidth() / 2.0f;
-        halfHeight = m_Map->GetMapHeight() / 2.0f;
-        m_Mario->SetScreenBounds(halfWidth, halfHeight);
-        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
+        mapImg = "../Resources/Images/board-elevators.png";
+        mapTxt = "../Resources/Maps/Map3.txt";
+    } else {
+        mapImg = "../Resources/Images/board-rivets.png";
+        mapTxt = "../Resources/Maps/Map4.txt";
+    }
 
-        // 設定第三關 DK 只會搥胸
-        m_DonkeyKong->SetPosition({-halfWidth + 120.0f, halfHeight - 110.0f});
-        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
-        m_DonkeyKong->SetMoveBounds(-halfWidth + 120.0f, -halfWidth + 120.0f);
+    m_Map->LoadNewMap(mapImg, mapTxt);
+    m_DonkeyKong->SetMap(m_Map); // 讓 DK 持有地圖指標
 
-        // 取得地圖目前的縮放比例
+    // --- 3. 定義邏輯座標與行為 (基於 720x720 系統) ---
+    // 以下數值皆為 720x720 邏輯空間中的精準座標 (X, Y)
+    glm::vec2 dkLogicPos, marioLogicPos;
+    float dkMinLogicX = 0.0f, dkMaxLogicX = 0.0f;
+    DonkeyKong::Behavior dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
+
+    if (m_CurrentStage == 1) {
+        dkLogicPos = {120.0f, 165.0f};      // DK 在左上方平台
+        marioLogicPos = {50.0f, 665.0f};    // Mario 在左下方起點
+        dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
+
+        if (m_StaticBarrels) {
+            m_StaticBarrels->SetVisible(true);
+            m_StaticBarrels->SetPosition(CoordinateManager::LogicToEngine({40.0f, 155.0f}));
+        }
+    } else if (m_CurrentStage == 2) {
+        dkLogicPos = {110.0f, 155.0f};
+        marioLogicPos = {50.0f, 665.0f};
+        dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
+        dkMinLogicX = 100.0f; dkMaxLogicX = 620.0f; // 巡邏範圍
+        if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
+    } else if (m_CurrentStage == 3) {
+        dkLogicPos = {120.0f, 155.0f};
+        marioLogicPos = {50.0f, 665.0f};
+        dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
+        dkMinLogicX = 120.0f; dkMaxLogicX = 120.0f; // 原地搥胸
+        if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
+    } else if (m_CurrentStage == 4) {
+        dkLogicPos = {360.0f, 110.0f};      // DK 在頂端中心
+        marioLogicPos = {50.0f, 665.0f};
+        dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
+        dkMinLogicX = 360.0f; dkMaxLogicX = 360.0f;
+        if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
+    }
+
+    // --- 4. 統一執行座標轉換與套用 ---
+
+    // A. 設定 Mario 位置
+    m_Mario->SetPosition(CoordinateManager::LogicToEngine(marioLogicPos));
+
+    // B. 設定 Donkey Kong 尺寸與位置 (對齊腳底)
+    m_DonkeyKong->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
+    glm::vec2 dkEngineFoot = CoordinateManager::LogicToEngine(dkLogicPos);
+    float dkSpawnY = dkEngineFoot.y + (m_DonkeyKong->GetSize().y / 2.0f);
+    m_DonkeyKong->SetPosition({dkEngineFoot.x, dkSpawnY});
+
+    // C. 同步更新 DK 行為參數與邊界
+    float engMinX = CoordinateManager::LogicToEngine({dkMinLogicX, 0.0f}).x;
+    float engMaxX = CoordinateManager::LogicToEngine({dkMaxLogicX, 0.0f}).x;
+    m_DonkeyKong->SetMoveBounds(engMinX, engMaxX);
+    m_DonkeyKong->SetBehavior(dkBehavior);
+
+    // --- 5. 處理各關卡特殊物件 (電梯、插銷) ---
+    if (m_CurrentStage == 3) {
         glm::vec2 mapScale = m_Map->GetScale();
+        // 將電梯的上下極限高度轉換為引擎座標
+        float elevatorTopY = CoordinateManager::LogicToEngine({0.0f, 130.0f}).y;
+        float elevatorBotY = CoordinateManager::LogicToEngine({0.0f, 680.0f}).y;
+        float spacing = 150.0f * mapScale.y;
 
-        // 假設上下邊界是根據半高設定
-        float elevatorTopY = 130.0f;
-        float elevatorBotY = -halfHeight + 30.0f;
-        float spacing = 150.0f * mapScale.y; // 垂直間距也要隨著縮放調整
-
-        // 左側電梯 (上升)：建立多個踏板以填滿上下邊界，形成連續循環的移動效果
+        // 生成左側電梯 (邏輯 X = 215.0f)
+        float leftX = CoordinateManager::LogicToEngine({215.0f, 0.0f}).x;
         for (float y = elevatorBotY; y <= elevatorTopY; y += spacing) {
-            // 建立單個電梯踏板：設定方向與邊界，同步地圖縮放以維持比例，並加入追蹤容器與渲染器
-            auto el = std::make_shared<Elevator>(Elevator::Direction::UP, elevatorBotY, elevatorTopY, 1.0f);  // 讓速度隨關卡等級增加: 1.0f + m_CurrentLevel * 0.1f
-            el->SetScale(mapScale); // 同步地圖縮放比例
-            el->SetPosition({-145.0f * mapScale.x, y}); // X 座標需乘以地圖縮放，確保在不同解析度下位置正確
+            auto el = std::make_shared<Elevator>(Elevator::Direction::UP, elevatorBotY, elevatorTopY, 1.0f);
+            el->SetScale(mapScale);
+            el->SetPosition({leftX, y});
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
 
-        // 右側電梯 (下降)：同樣根據邊界與間距建立踏板，方向設定為向下
+        // 生成右側電梯 (邏輯 X = 345.0f)
+        float rightX = CoordinateManager::LogicToEngine({345.0f, 0.0f}).x;
         for (float y = elevatorTopY; y >= elevatorBotY; y -= spacing) {
             auto el = std::make_shared<Elevator>(Elevator::Direction::DOWN, elevatorBotY, elevatorTopY, 1.0f);
-            el->SetScale(mapScale); // 同步地圖縮放比例
-            el->SetPosition({-15.0f * mapScale.x, y}); // X 座標需乘以地圖縮放
+            el->SetScale(mapScale);
+            el->SetPosition({rightX, y});
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
     } else if (m_CurrentStage == 4) {
-        m_Map->LoadNewMap("../Resources/Images/board-rivets.png", "../Resources/Maps/Map4.txt");
-        halfWidth = m_Map->GetMapWidth() / 2.0f;
-        halfHeight = m_Map->GetMapHeight() / 2.0f;
-        m_Mario->SetScreenBounds(halfWidth, halfHeight);
-
-        // 第四關的各角色與道具初始位置
-        m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
-        m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({-280.0f, -110.0f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({0.0f, halfHeight - 180.0f});
-
-        // 設定第四關 DK 只會搥胸
-        m_DonkeyKong->SetPosition({0.0f, halfHeight - 110.0f});
-        m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
-        m_DonkeyKong->SetMoveBounds(0.0f, 0.0f);
-
         const auto& data = m_Map->GetLevelData();
         for (int y = 0; y < data.GetHeight(); ++y) {
             for (int x = 0; x < data.GetWidth(); ++x) {
                 if (data.GetTile(x, y) == TileType::RIVET) {
                     auto rivet = std::make_shared<Character>(RESOURCE_DIR"/Images/rivet.png");
-                    // 根據 Tile 大小調整縮放，這裡假設使用與 Mario 類似的縮放倍率
                     rivet->SetScale({m_Mario->marioScale, m_Mario->marioScale});
-                    rivet->SetZIndex(-5); // 放在地圖上方，角色下方
-                    rivet->SetPosition(m_Map->GetTileWorldPosition(x, y+3));
-                    LOG_DEBUG("({},{})", x, y);
+                    rivet->SetZIndex(-5);
+                    // 這裡直接使用 GetTileWorldPosition，因為它內部已經包含精確轉換
+                    rivet->SetPosition(m_Map->GetTileWorldPosition(x, y));
                     m_RivetVisuals[{x, y}] = rivet;
                     m_Renderer.AddChild(rivet);
                     m_RivetCount++;
@@ -356,9 +268,9 @@ void App::LoadLevel(int level) {
             }
         }
     }
-    LOG_INFO("map halfWidth: {}, halfHeight: {}", halfWidth, halfHeight);
 
-    // 5. 同步物理資訊：更新 Donkey Kong 的新位置給 Mario 作為移動邊界
+    // --- 6. 最後同步物理資訊 ---
+    // 確保 Mario 獲取到最新 DK 的碰撞框資訊
     m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
 }
 
@@ -379,6 +291,9 @@ void App::Start() {
     // 建構 Mario 物件，把 Mario 裡面所有的圖層一口氣加進 App 的Renderer中
     m_Mario = std::make_shared<Mario>();
     m_Mario->AddToRenderer(m_Renderer);
+
+    // 將地圖實體交給 Mario
+    m_Mario->SetMap(m_Map);
 
     // 建構火球物件
     m_Fireball = std::make_shared<Fiamma>();
@@ -538,6 +453,17 @@ void App::Update() {
         // 更新木桶邏輯
         UpdateBarrels(marioState);
 
+        // 【新增：資源回收機制】把掉出畫面 (隱藏) 的木桶徹底移除，釋放記憶體
+        m_Barrels.erase(std::remove_if(m_Barrels.begin(), m_Barrels.end(),
+            [this](const std::shared_ptr<Barrel>& b) {
+                if (!b->GetVisibility()) {
+                    // 非常重要：不僅要從陣列移除，還要從渲染器中拔除，否則記憶體不會釋放
+                    m_Renderer.RemoveChild(b);
+                    return true;
+                }
+                return false;
+            }), m_Barrels.end());
+
         // 在處理 Mario 的移動邏輯之前，先更新 Donkey Kong 的邊界資訊給 Mario
         m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
 
@@ -647,13 +573,11 @@ void App::Update() {
                     // 關鍵邏輯：目前踩的是普通地板，且「上一幀」還有踩在插銷上
                     auto [rx, ry] = m_Map->GetTileIndexAtPosition(m_ActiveRivetPos.x, m_ActiveRivetPos.y);
 
-                    if (m_RivetVisuals.count({rx, ry})) {
-                        // 1. 邏輯移除：將該網格設為 EMPTY
+                    auto rivetKey = std::make_pair(rx, ry);
+                    if (m_RivetVisuals.count(rivetKey)) {
                         m_Map->SetTileAtPosition(m_ActiveRivetPos.x, m_ActiveRivetPos.y, TileType::EMPTY);
-
-                        // 2. 視覺移除：移除 Character 物件
-                        m_Renderer.RemoveChild(m_RivetVisuals[{rx, ry}]);
-                        m_RivetVisuals.erase({rx, ry});
+                        m_Renderer.RemoveChild(m_RivetVisuals[rivetKey]);
+                        m_RivetVisuals.erase(rivetKey);
                         m_RivetCount--;
                         m_HUDText->AddScore(100);
                         LOG_INFO("Rivet removed at ({},{}), remaining: {}", rx, ry, m_RivetCount);
