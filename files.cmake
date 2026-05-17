@@ -24,6 +24,9 @@ set(INCLUDE_FILES
     LevelData.hpp
     TileType.hpp
     Elevator.hpp
+    CementPan.hpp
+    CementSpawner.hpp
+    ConveeyorSystem.hpp
 )
 
 set(TEST_FILES
