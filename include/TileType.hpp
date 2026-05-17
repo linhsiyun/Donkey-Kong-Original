@@ -10,6 +10,8 @@ enum class TileType {
     CONVEYOR1 = 5, // 對應 y1 的長傳送帶
     CONVEYOR2 = 6, // 對應 y2 左邊的傳送帶
     CONVEYOR3 = 7, // 對應 y2 右邊的傳送帶
+    MOVING_LADDER_LEFT = 8,   // 左側梯會伸縮的部分
+    MOVING_LADDER_RIGHT = 9,  // 右側梯會伸縮的部分
     OVER_LIMIT = 99 // 超出地圖邊界
 };
 

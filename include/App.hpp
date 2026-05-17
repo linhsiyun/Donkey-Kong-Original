@@ -20,6 +20,7 @@
 #include "DonkeyKong.hpp"
 #include "Barrel.hpp"
 #include "CementPan.hpp"
+#include "MovingLadder.hpp"
 
 class App {
 public:
@@ -71,6 +72,7 @@ private:
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
     std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
     std::vector<std::shared_ptr<Barrel>> m_Barrels; // 儲存所有畫面上的酒桶
+    std::vector<std::shared_ptr<MovingLadder>> m_MovingLadders; // 【新增】儲存伸縮梯子
     std::vector<std::shared_ptr<CementPan>> m_CementPans; // 儲存所有水泥塊
     std::shared_ptr<AnimatedCharacter> m_SmashEffect; // 搥擊特效動畫
     std::shared_ptr<Character> m_BlackCover; // 【新增】通關時遮住中間結構的黑色方塊
