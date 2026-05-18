@@ -71,6 +71,7 @@ private:
     std::shared_ptr<HUDManager> m_HUDText;
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
     std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
+    std::vector<std::shared_ptr<Character>> m_ElevatorStops; // 儲存所有電梯擋板
     std::vector<std::shared_ptr<Barrel>> m_Barrels; // 儲存所有畫面上的酒桶
     std::vector<std::shared_ptr<MovingLadder>> m_MovingLadders; // 【新增】儲存伸縮梯子
     std::vector<std::shared_ptr<CementPan>> m_CementPans; // 儲存所有水泥塊

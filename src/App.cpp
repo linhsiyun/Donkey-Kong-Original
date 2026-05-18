@@ -253,6 +253,10 @@ void App::LoadLevel(int level) {
     for (auto& el : m_Elevators) m_Renderer.RemoveChild(el);
     m_Elevators.clear();
 
+    // 清除舊電梯擋板
+    for (auto& stop : m_ElevatorStops) m_Renderer.RemoveChild(stop);
+    m_ElevatorStops.clear();
+
     // 每次載入關卡前先清除舊插銷(Stage 4)，確保畫面上不會殘留
     for (auto& pair : m_RivetVisuals) m_Renderer.RemoveChild(pair.second);
     m_RivetVisuals.clear();
@@ -422,8 +426,8 @@ void App::LoadLevel(int level) {
         glm::vec2 mapScale = m_Map->GetScale();
 
         // 假設上下邊界是根據半高設定
-        float elevatorTopY = 130.0f;
-        float elevatorBotY = -halfHeight + 30.0f;
+        float elevatorTopY = 108.0f;
+        float elevatorBotY = -halfHeight + 43.0f;
         float spacing = 150.0f * mapScale.y; // 垂直間距也要隨著縮放調整
 
         // 左側電梯 (上升)：建立多個踏板以填滿上下邊界，形成連續循環的移動效果
@@ -444,6 +448,29 @@ void App::LoadLevel(int level) {
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
+
+        // 新增：電梯擋板
+        float leftElX = -145.0f * mapScale.x;
+        float rightElX = -15.0f * mapScale.x;
+
+        auto createStop = [&](float x, float y, bool upsideDown) {
+            auto stop = std::make_shared<Character>(RESOURCE_DIR"/Images/ElevatorStop.png");
+            stop->SetZIndex(40);
+            if (upsideDown) {
+                stop->SetScale({mapScale.x * 2.0f, -mapScale.y * 2.0f});
+            } else {
+                stop->SetScale(mapScale * 2.0f);
+            }
+            stop->SetPosition({x, y});
+            m_ElevatorStops.push_back(stop);
+            m_Renderer.AddChild(stop);
+        };
+
+        createStop(leftElX, elevatorTopY + 15.0f * mapScale.y, false);
+        createStop(leftElX, elevatorBotY - 15.0f * mapScale.y, true);
+        createStop(rightElX, elevatorTopY + 15.0f * mapScale.y, false);
+        createStop(rightElX, elevatorBotY - 15.0f * mapScale.y, true);
+
     } else if (m_CurrentStage == Stage::RIVETS) {
         m_Map->LoadNewMap("../Resources/Images/board-rivets.png", "../Resources/Maps/Map4.txt");
         halfWidth = m_Map->GetMapWidth() / 2.0f;
@@ -520,7 +547,7 @@ void App::Start() {
     m_Renderer.AddChild(m_HammerItem2);
 
     // 建構 Stage 1 背景中的固定酒桶堆 (位於 Donkey Kong 旁邊)
-    m_StaticBarrels = std::make_shared<Character>(RESOURCE_DIR"/Images/barrel00.png");
+    m_StaticBarrels = std::make_shared<Character>(RESOURCE_DIR"/Images/Barrel00.png");
     m_StaticBarrels->SetScale({m_Mario->marioScale / 1.0f, m_Mario->marioScale / 1.0f});
     m_StaticBarrels->SetZIndex(40); // 確保在角色層級之後
     m_Renderer.AddChild(m_StaticBarrels);
@@ -1075,6 +1102,29 @@ void App::Update() {
                         m_Mario->IDLE();
                     }
                 }
+            }
+        }
+
+        // 3.5 電梯擋板碰撞偵測
+        for (auto& stop : m_ElevatorStops) {
+            if (stop->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                glm::vec2 mPos = m_Mario->GetPosition();
+                glm::vec2 sPos = stop->GetPosition();
+                glm::vec2 mSize = m_Mario->GetSize();
+                glm::vec2 sSize = stop->GetSize();
+
+                // 找出最小推擠量
+                float overlapX = (mSize.x + sSize.x) / 2.0f - std::abs(mPos.x - sPos.x);
+                float overlapY = (mSize.y + sSize.y) / 2.0f - std::abs(mPos.y - sPos.y);
+
+                if (overlapX < overlapY) {
+                    if (mPos.x < sPos.x) mPos.x -= overlapX;
+                    else mPos.x += overlapX;
+                } else {
+                    if (mPos.y < sPos.y) mPos.y -= overlapY;
+                    else mPos.y += overlapY;
+                }
+                m_Mario->SetPosition(mPos);
             }
         }
 
