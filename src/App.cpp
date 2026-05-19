@@ -329,7 +329,7 @@ void App::LoadLevel(int level) {
         m_DonkeyKong->SetPosition({-halfWidth + 120.0f, halfHeight - 100.0f});
         m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::STATIONARY_LOOKING);
         if (m_Princess) {
-            m_Princess->SetPosition({0.0f, halfHeight - 35});
+            m_Princess->SetPosition({-15.0f, halfHeight - 35});
         }
 
     } else if (m_CurrentStage == Stage::CONVEYORS) {
@@ -404,7 +404,7 @@ void App::LoadLevel(int level) {
         m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
         m_DonkeyKong->SetMoveBounds(-halfWidth + 110.0f, halfWidth - 110.0f);
         if (m_Princess) {
-            m_Princess->SetPosition({0.0f, halfHeight - 35});
+            m_Princess->SetPosition({-15.0f, halfHeight - 35});
         }
 
     } else if (m_CurrentStage == Stage::ELEVATORS) {
@@ -419,7 +419,7 @@ void App::LoadLevel(int level) {
         m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::MOVING_CHEST_BEATING);
         m_DonkeyKong->SetMoveBounds(-halfWidth + 120.0f, -halfWidth + 120.0f);
         if (m_Princess) {
-            m_Princess->SetPosition({0.0f, halfHeight - 35});
+            m_Princess->SetPosition({-15.0f, halfHeight - 35});
         }
 
         // 取得地圖目前的縮放比例
@@ -1054,11 +1054,6 @@ void App::Update() {
                     if (ladderOk) {
                         m_Mario->Climb(CLIMB_DIR::UP);
                     }
-
-                    glm::vec2 pos = m_Mario->GetPosition();
-                    if (pos.y >= (halfHeight - 50.0f)) {
-                        m_Mario->Win();
-                    }
                 }
             }
             // 向下攀爬
@@ -1161,6 +1156,23 @@ void App::Update() {
             if (m_HammerItem2->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
                 m_Mario->WaitForHammer();
                 m_HammerItem2->SetVisible(false);
+            }
+        }
+
+        // 6.5 碰撞偵測：Mario 與公主 (m_Princess)
+        if (m_Princess && m_Princess->GetVisibility()) {
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            const auto princessPos = m_Princess->GetPosition();
+            const auto princessSize = m_Princess->GetSize();
+
+            const auto marioHalfSize = marioSize / 2.0f;
+            const auto princessHalfSize = princessSize / 2.0f;
+
+            if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
+                std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y) &&
+                marioPos.y >= (halfHeight - 50.0f)) {
+                m_Mario->Win();
             }
         }
 
