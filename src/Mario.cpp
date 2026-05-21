@@ -78,6 +78,9 @@ Mario::Mario() {
     // 初始化跳躍狀態，確保一開始不會誤動作
     m_IsJumping = false;
     m_JumpTimer = 0.0f;
+    m_HammerTimer = 0.0f;
+    m_DeadTimer = 0.0f;
+    m_WaitForHammer = false;
 }
 
 // 這個函式讓 App 只要呼叫一次，就把所有狀態的圖層加進渲染器
@@ -135,6 +138,13 @@ void Mario::SetState(MarioState newState) {
 void Mario::IDLE() {
     // 狀態保護：如果已經死亡或獲勝，不允許回到普通待機狀態
     if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
+    // 如果落地時正在等待槌子，則進入槌子狀態
+    if (m_WaitForHammer) {
+        Hammer();
+        m_WaitForHammer = false;
+        return;
+    }
 
     if (m_CurrentState != MarioState::IDLE && m_CurrentState != MarioState::HAMMERING) {
         LOG_DEBUG("IDLE");
@@ -250,8 +260,8 @@ void Mario::Jump() {
     if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
 
     // 設定跳躍參數 (後續可以修改這裡的數值)
-    const float totalJumpTime = 35.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
-    const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的兩倍
+    const float totalJumpTime = 45.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
+    const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的1.25倍
 
     m_JumpTimer += 1.0f;
 

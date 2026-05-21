@@ -3,7 +3,7 @@
 #include "Util/Time.hpp"
 
 Elevator::Elevator(Direction dir, float minY, float maxY, float speed)
-    : Character(RESOURCE_DIR"/Images/Floor0.png"), m_Direction(dir), m_MinY(minY), m_MaxY(maxY), m_Speed(speed) {
+    : Character(RESOURCE_DIR"/Images/Floor0.png"), m_Direction(dir), m_Speed(speed), m_MinY(minY), m_MaxY(maxY) {
     SetZIndex(30); // 放在背景前面，Mario 下方
 }
 

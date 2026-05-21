@@ -35,22 +35,22 @@ void LevelData::LoadFromFile(const std::string& filepath) {
 
 TileType LevelData::GetTile(int x, int y) const {
     // 邊界檢查，避免未來的碰撞系統存取越界
-    if (y < 0 || y >= m_Grid.size() || x < 0 || x >= m_Grid[y].size()) {
-        return TileType::EMPTY;
+    if (y < 0 || y >= static_cast<int>(m_Grid.size()) || x < 0 || x >= static_cast<int>(m_Grid[y].size())) {
+        return TileType::OVER_LIMIT;
     }
     return m_Grid[y][x];
 }
 
 void LevelData::SetTile(int x, int y, TileType type) {
-    if (y >= 0 && y < m_Grid.size() && x >= 0 && x < m_Grid[y].size()) {
+    if (y >= 0 && y < static_cast<int>(m_Grid.size()) && x >= 0 && x < static_cast<int>(m_Grid[y].size())) {
         m_Grid[y][x] = type;
     }
 }
 
 int LevelData::GetWidth() const {
-    return m_Grid.empty() ? 0 : m_Grid[0].size();
+    return m_Grid.empty() ? 0 : static_cast<int>(m_Grid[0].size());
 }
 
 int LevelData::GetHeight() const {
-    return m_Grid.size();
+    return static_cast<int>(m_Grid.size());
 }
