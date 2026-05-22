@@ -35,14 +35,20 @@ void Map::AutoScale() {
 
     glm::vec2 imageSize = m_Drawable->GetSize();
 
+
     // 為了符合 CoordinateManager 定義的 720 邏輯大小
     // 我們將地圖縮放到「高度」正好等於 720 像素（視窗高度）
     // 這樣地圖在 1080x720 的視窗中，上下會剛好貼合，左右則會維持比例置中
     float targetHeight = CoordinateManager::MAP_LOGIC_SIZE;
-    float scale = targetHeight / imageSize.y;
+    float baseScale = targetHeight / imageSize.y;
+
+    // --------------------------------------------------------
+    // 【新增】乘上全域縮放開關的比例 (例如 600/720)
+    // --------------------------------------------------------
+    float finalScale = baseScale * CoordinateManager::GetScaleRatio();
 
     // 採用統一縮放倍率，避免圖片拉伸變形
-    m_Transform.scale = {scale, scale};
+    m_Transform.scale = {finalScale, finalScale};
 
     // 確保地圖位於視窗中心 (0,0)，這樣 CoordinateManager 的轉換才會精準
     m_Transform.translation = {0.0f, 0.0f};
@@ -50,6 +56,8 @@ void Map::AutoScale() {
 
 void Map::UpdateDimensions() {
     if (m_Drawable == nullptr) return;
+
+    float baseWidth = CoordinateManager::MAP_LOGIC_SIZE * (static_cast<float>(m_LevelData.GetWidth()) / m_LevelData.GetHeight()); // 假設視窗比例
 
     glm::vec2 imageSize = m_Drawable->GetSize();
     glm::vec2 currentScale = m_Transform.scale;

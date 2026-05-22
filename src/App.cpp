@@ -18,6 +18,8 @@
 static std::shared_ptr<Character> m_HammerItem;
 static std::shared_ptr<Character> m_HammerItem2;
 static std::shared_ptr<Character> m_StaticBarrels;
+static std::shared_ptr<Character> m_OilBarrel;
+static std::shared_ptr<AnimatedCharacter> m_BurningOilBarrel;
 
 // 傳送帶關卡物件
 static std::shared_ptr<ConveyorSystem> m_ConveyorSystem;
@@ -229,6 +231,10 @@ void App::LoadLevel(int level) {
         m_HUDText->Init();                  // 重置分數為 0 且 Bonus 為 5000
         m_HUDText->SetLevel(m_CurrentLevel); // 更新畫面上的 L=XX 文字
     }
+    if (m_OilBarrel) {
+        m_Renderer.RemoveChild(m_OilBarrel);
+        m_OilBarrel = nullptr;
+    }
 
     // --- 2. 載入地圖資源 ---
     // 必須先載入地圖，後續所有基於地圖縮放（Scale）的計算才會正確
@@ -260,17 +266,34 @@ void App::LoadLevel(int level) {
     DonkeyKong::Behavior dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
     if (m_CurrentStage == App::Stage::BARRELS) {
         dkLogicPos = {120.0f, 165.0f};      // DK 在左上方平台
-        marioLogicPos = {50.0f, 665.0f};    // Mario 在左下方起點
+        marioLogicPos = {100.0f, 665.0f};    // Mario 在左下方起點
         dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
 
         if (m_StaticBarrels) {
             m_StaticBarrels->SetVisible(true);
-            m_StaticBarrels->SetPosition(CoordinateManager::LogicToEngine({40.0f, 155.0f}));
+            m_StaticBarrels->SetPosition(CoordinateManager::LogicToEngine({40.0f, 125.0f}));
         }
         // 第一關道具座標
-        m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -135.0f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 80.0f, halfHeight - 180.0f});
+        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
+        if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({510.0f, 535.0f}));
+        if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({80.0f, 220.0f}));
+
+        m_OilBarrel = std::make_shared<Character>(RESOURCE_DIR"/Images/OilBarrel.png");
+        // 2. 設定渲染層級（在背景地圖之上，瑪利歐之下即可）
+        m_OilBarrel->SetZIndex(40);
+
+        // 3. 設定縮放（如果需要跟 Mario 保持相同比例，就套用你的 marioScale）
+        m_OilBarrel->SetScale({m_Mario->marioScale, m_Mario->marioScale});
+
+        // 4. 設定邏輯位置 (30, 690)，並轉換為引擎座標
+        m_OilBarrel->SetPosition(CoordinateManager::LogicToEngine({60.0f, 672.0f}));
+
+        // 5. 設定可見度
+        m_OilBarrel->SetVisible(true);
+
+        // 7. 加入渲染器統一繪製
+        m_Renderer.AddChild(m_OilBarrel);
+
     } else if (m_CurrentStage == App::Stage::CONVEYORS) {
         dkLogicPos = {110.0f, 155.0f};
         marioLogicPos = {50.0f, 665.0f};
@@ -280,17 +303,17 @@ void App::LoadLevel(int level) {
 
         // 第二關道具座標
         m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
+        if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({510.0f, 480.5f}));
+        if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({180.0f, 180.0f}));
 
         float maskWidth = 100.0f;
         if (m_LeftMask) {
             m_LeftMask->SetVisible(true);
-            m_LeftMask->SetPosition({-halfWidth - (maskWidth / 2.0f), -100.0f});
+            m_LeftMask->SetPosition(CoordinateManager::LogicToEngine({-50.0f, 460.0f}));
         }
         if (m_RightMask) {
             m_RightMask->SetVisible(true);
-            m_RightMask->SetPosition({halfWidth + (maskWidth / 2.0f), -100.0f});
+            m_RightMask->SetPosition(CoordinateManager::LogicToEngine({770.0f, 460.0f}));
         }
 
         m_ConveyorSystem = std::make_shared<ConveyorSystem>();
@@ -327,7 +350,7 @@ void App::LoadLevel(int level) {
         dkMinLogicX = 120.0f; dkMaxLogicX = 120.0f; // 原地搥胸
         if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
         // 第三關道具座標 (如果沒有就不設定，或放預設位置)
-        m_Fireball->SetPosition({-100.0f, -70.0f});
+        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
     } else if (m_CurrentStage == App::Stage::RIVETS) {
         dkLogicPos = {360.0f, 110.0f};      // DK 在頂端中心
         marioLogicPos = {50.0f, 665.0f};
@@ -337,13 +360,15 @@ void App::LoadLevel(int level) {
 
         // 第四關道具座標 (這就是原本右邊程式碼裡的設定)
         m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({-280.0f, -110.0f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({0.0f, halfHeight - 180.0f});
+        if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({80.0f, 470.0f}));
+        if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({180.0f, 180.0f}));
+
     }
 
     // 公主座標所有關卡皆相同，可以直接放在 if 外面
     if (m_Princess) {
-        m_Princess->SetPosition({0.0f, halfHeight - 35});
+        // 畫面水平正中央 X=360，頂端向下 Y=45 的位置
+        m_Princess->SetPosition(CoordinateManager::LogicToEngine({360.0f, 45.0f}));
     }
 
     // --- 4. 統一執行座標轉換與套用 ---
@@ -730,13 +755,16 @@ void App::Update() {
         glm::vec2 currentGroundTilePos = {0.0f, 0.0f}; // 【新增】儲存當前踩踏地板的中心座標
         const float tileH = m_Map->GetTileHeight();
 
+        // 【新增】取得縮放比例
+        float scaleRatio = CoordinateManager::GetScaleRatio();
+
         // 跳躍中搜尋範圍可以稍微加大，避免高速下落穿透
         const float searchRange = m_Mario->IsJumping() ? tileH * 2.0f : tileH * 1.5f;
 
         // 採用你發現的邏輯：往下深探 1 像素，確保穩定偵測到當前踩踏的地板
-        TileType currentMarioFootTile = m_Map->GetTileAtPosition(marioPos.x, footY - 1.0f);
+        TileType currentMarioFootTile = m_Map->GetTileAtPosition(marioPos.x, footY - (1.0f * scaleRatio));
         TileType tileCenter = m_Map->GetTileAtPosition(marioPos.x, marioPos.y); // 用中心點檢查
-        TileType tileFoot1 = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) + 3.0f);
+        TileType tileFoot1 = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) + (3.0f * scaleRatio));
 
         // [修正] 地面偵測邏輯：加入對傳送帶 Tile 的判定
         if (currentMarioFootTile == TileType::FLOOR ||
@@ -747,11 +775,17 @@ void App::Update() {
             // 向上找 FLOOR
             for (float dy = 0.0f; dy <= searchRange; dy += 1.0f) {
                 TileType tile = m_Map->GetTileAtPosition(marioPos.x, footY + dy + 1.0f);
-                if (tile == TileType::EMPTY || tile == TileType::LADDER) {
+                // 排除法：只要「不是」實體地板，就代表我們找到了地板的上方表面（空氣層）
+                if (tile != TileType::FLOOR &&
+                    tile != TileType::CONVEYOR1 &&
+                    tile != TileType::CONVEYOR2 &&
+                    tile != TileType::CONVEYOR3 &&
+                    tile != TileType::RIVET) {
+
                     targetFootY = footY + dy;
                     foundSurface = true;
                     break;
-                }
+                    }
             }
         } else {
             // 向下找 FLOOR
@@ -785,7 +819,7 @@ void App::Update() {
                     float elTopY = el->GetPosition().y + (el->GetSize().y / 2.0f);
 
                     // 判定 Mario 必須在踏板上方（允許 10 像素的吸附落差）
-                    if (marioFootY >= elTopY - 10.0f) {
+                    if (marioFootY >= elTopY - (10.0f * scaleRatio)) {
                         foundSurface = true;
                         targetFootY = elTopY;
 
@@ -867,9 +901,9 @@ void App::Update() {
             // 取得 Mario 中心點的格子類型，用於輔助判定穿越厚地板的爬行
             //TileType tileAtCenter = m_Map->GetTileAtPosition(marioPos.x, marioPos.y);
 
-            TileType tileBelow = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) - 33.0f);
+            TileType tileBelow = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) - (33.0f * scaleRatio));
             //TileType tileFoot1 = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) + 3.0f);
-            TileType tileFoot2 = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) - 1.0f);
+            TileType tileFoot2 = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) - (1.0f * scaleRatio));
             //TileType tileCenter = m_Map->GetTileAtPosition(marioPos.x, marioPos.y); // 用中心點檢查
 
             // [落地檢查]
