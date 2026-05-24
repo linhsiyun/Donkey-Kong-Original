@@ -30,7 +30,7 @@ public:
         float footY = pos.y - (size.y / 2.0f);
 
         // 1. 偵測腳下的 Tile
-        TileType currentTile = map->GetTileAtPosition(pos.x, footY - 2.0f);
+        TileType currentTile = map->GetTileAtPosition(pos.x, footY - 5.0f);
         if (currentTile == TileType::EMPTY) {
             // 2. 只有在地圖內偵測到「空位」(EMPTY) 時才移除，代表掉進洞裡
             m_ShouldRemove = true;
