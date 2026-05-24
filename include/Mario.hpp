@@ -85,6 +85,7 @@ public:
     const float movingStep = 2.0F;  // 走路與跳躍速度
     const float climbingStep = 1.0F; // 攀爬速度
     bool IsJumping() const { return m_IsJumping; }
+    bool IsDeathAnimationDone() const; // 【新增】判斷死亡動畫是否播放完畢
     float GetJumpTimer() const { return m_JumpTimer; } // 新增：取得跳躍計時器
 
 private:

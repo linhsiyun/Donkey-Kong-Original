@@ -46,6 +46,7 @@ private:
     int highScore = 0;      // 歷史最高紀錄。
     int bonusTime = 5000;   // 這不只是分數，它是限時器。每一關開始時從 5000 開始倒數(-100)，歸零時玩家死亡。
     int level = 1;          // 目前的關卡數（例如 L=01）。
+    int mLives = 3;         // 【新增】剩餘生命值
 
     // Text 負責顯示文字內容，GameObject 負責處理位置與渲染層級 (ZIndex)
     std::shared_ptr<Util::Text> scoreText;
@@ -88,6 +89,8 @@ public:
     void AddScore(int points);
     void ResetBonus(int amount = 5000);
     void SetLevel(int level);
+    void DecreaseLife();       // 【新增】扣除生命
+    int GetLives() const { return mLives; } // 【新增】取得剩餘生命
     int GetBonus() { return bonusTime; }
 };
 #endif // HUDMANAGER_HPP
