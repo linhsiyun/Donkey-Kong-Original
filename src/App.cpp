@@ -157,8 +157,28 @@ void App::TriggerSmash(glm::vec2 position, int score) {
     m_SmashEffect->SetVisible(true);
     m_SmashEffect->Stop(); // 重置到第一幀
     m_SmashEffect->Play();
+    SpawnPointVisual(position, score);
     m_FreezeTimer = 1500.0f; // 調整為凍結 1.5 秒
     LOG_DEBUG("SMASH TRIGGERED at ({}, {})", position.x, position.y);
+}
+
+void App::SpawnPointVisual(glm::vec2 position, int score) {
+    std::string imagePath;
+    if (score == 100) imagePath = RESOURCE_DIR"/Images/Point_100.png";
+    else if (score == 300) imagePath = RESOURCE_DIR"/Images/Point_300.png";
+    else if (score == 500) imagePath = RESOURCE_DIR"/Images/Point_500.png";
+    else if (score == 800) imagePath = RESOURCE_DIR"/Images/Point_800.png";
+    else return;
+
+    auto visual = std::make_shared<Character>(imagePath);
+    visual->SetPosition(position);
+    visual->SetZIndex(80); // 確保顯示在特效與角色之上
+
+    // 根據地圖縮放調整分數圖片大小
+    visual->SetScale(m_Map->GetScale() * 1.8f); // 放大倍率調整為 1.8f，讓顯示更清楚
+
+    m_PointVisuals.push_back({visual, 1500.0f}); // 1.5 秒後消失
+    m_Renderer.AddChild(visual);
 }
 
 /**
@@ -183,6 +203,24 @@ void App::LoadLevel(int level) {
     m_Barrels.clear();
     for (auto& el : m_Elevators) m_Renderer.RemoveChild(el);
     m_Elevators.clear();
+
+    // 每次載入關卡前先清除舊得分特效
+    for (auto& pv : m_PointVisuals) m_Renderer.RemoveChild(pv.character);
+    m_PointVisuals.clear();
+
+    // 每次載入關卡前先清除舊雨傘
+    for (auto& u : m_Umbrellas) m_Renderer.RemoveChild(u);
+    m_Umbrellas.clear();
+
+    // 每次載入關卡前先清除舊皮包
+    for (auto& p : m_Purses) m_Renderer.RemoveChild(p);
+    m_Purses.clear();
+
+    // 清除舊電梯擋板
+    for (auto& stop : m_ElevatorStops) m_Renderer.RemoveChild(stop);
+    m_ElevatorStops.clear();
+
+    // 每次載入關卡前先清除舊插銷(Stage 4)，確保畫面上不會殘留
     for (auto& pair : m_RivetVisuals) m_Renderer.RemoveChild(pair.second);
     m_RivetVisuals.clear();
 
@@ -203,6 +241,17 @@ void App::LoadLevel(int level) {
     if (m_BlackCover) m_BlackCover->SetVisible(false);
     if (m_LeftMask) m_LeftMask->SetVisible(false);
     if (m_RightMask) m_RightMask->SetVisible(false);
+
+    // 重置心形與公主狀態
+    if (m_Heart) {
+        m_Heart->SetVisible(false);
+        m_Heart->SetImage(RESOURCE_DIR"/Images/heart.png"); // 還原成完整的愛心
+    }
+    if (m_Princess) {
+        m_Princess->SetCurrentFrame(0); // 回到初始 Princess 圖案
+        m_Princess->SetVisible(true);   // 確保公主重新顯示
+        m_Princess->SetScale({m_Mario->marioScale, m_Mario->marioScale}); // 重置縮放
+    }
 
     if (m_DonkeyKong) {
         // 還原 DK 的縮放比例（恢復正向並重設尺寸）
@@ -228,7 +277,8 @@ void App::LoadLevel(int level) {
 
     // 重置 HUD 資訊
     if (m_HUDText) {
-        m_HUDText->Init();                  // 重置分數為 0 且 Bonus 為 5000
+        // 修正：不要在這裡 Init，否則會把剩餘生命值洗回 3
+        m_HUDText->ResetBonus(5000);
         m_HUDText->SetLevel(m_CurrentLevel); // 更新畫面上的 L=XX 文字
     }
     if (m_OilBarrel) {
@@ -378,48 +428,38 @@ void App::LoadLevel(int level) {
         dkMinLogicX = 360.0f; dkMaxLogicX = 360.0f;
         if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
 
-        // 第四關道具座標 (這就是原本右邊程式碼裡的設定)
+        // 第四關道具座標
         m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
         if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({80.0f, 470.0f}));
         if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({180.0f, 180.0f}));
-
     }
 
     // 公主座標所有關卡皆相同，可以直接放在 if 外面
     if (m_Princess) {
-        // 畫面水平正中央 X=360，頂端向下 Y=45 的位置
         m_Princess->SetPosition(CoordinateManager::LogicToEngine({360.0f, 45.0f}));
     }
 
     // --- 4. 統一執行座標轉換與套用 ---
-
-    // A. 設定 Mario 位置
     m_Mario->SetPosition(CoordinateManager::LogicToEngine(marioLogicPos));
 
-    // 1. 轉換大金剛的站立座標
     glm::vec2 dkEngineFoot = CoordinateManager::LogicToEngine(dkLogicPos);
-
-    // (註：保留了你原本加上的半高 Y 軸補償，避免大金剛半截身體陷進地板裡)
     float dkSpawnY = dkEngineFoot.y + (m_DonkeyKong->GetSize().y / 2.0f);
     m_DonkeyKong->SetPosition({dkEngineFoot.x, dkSpawnY});
     m_DonkeyKong->SetBehavior(dkBehavior);
 
-    // 2. 轉換大金剛的左右巡邏邊界（只取轉換後的 X 軸）
     float engineMinX = CoordinateManager::LogicToEngine({dkMinLogicX, 0.0f}).x;
     float engineMaxX = CoordinateManager::LogicToEngine({dkMaxLogicX, 0.0f}).x;
     m_DonkeyKong->SetMoveBounds(engineMinX, engineMaxX);
 
     // --- 5. 處理各關卡特殊物件 (電梯、插銷) ---
+    glm::vec2 mapScale = m_Map->GetScale();
+
     if (m_CurrentStage == App::Stage::ELEVATORS) {
         // 1. 定義電梯的上下極限邊界 (邏輯 Y 座標)
         float logicTopY = 200.0f;
         float logicBotY = 680.0f;
-
-        // 2. 定義左右兩部電梯的軌道位置 (對齊畫面紅線)
         float logicLeftX = 130.0f;
         float logicRightX = 335.0f;
-
-        // 3. 定義相鄰兩塊電梯踏板之間的間距
         float logicSpacing = 160.0f;
 
         // 轉換為引擎座標
@@ -427,7 +467,30 @@ void App::LoadLevel(int level) {
         float engBotY = CoordinateManager::LogicToEngine({0.0f, logicBotY}).y;
         glm::vec2 mapScale = m_Map->GetScale();
 
-        // 4. 建立左側「上升」電梯 (UP)
+        // 雨傘道具 (Stage 3)
+        auto createUmbrella = [&](float logicX, float logicY) {
+            auto u = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
+            u->SetScale(mapScale * 1.5f);
+            u->SetZIndex(40);
+            u->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
+            m_Umbrellas.push_back(u);
+            m_Renderer.AddChild(u);
+        };
+        createUmbrella(30.0f, 260.0f);
+        createUmbrella(690.0f, 180.0f);
+
+        // 皮包道具 (Stage 3)
+        auto createPurse = [&](float logicX, float logicY) {
+            auto p = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
+            p->SetScale(mapScale * 1.5f);
+            p->SetZIndex(40);
+            p->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
+            m_Purses.push_back(p);
+            m_Renderer.AddChild(p);
+        };
+        createPurse(225.0f, 400.0f);
+
+        // 建立左側「上升」電梯 (UP)
         for (float currY = logicBotY; currY >= logicTopY; currY -= logicSpacing) {
             auto el = std::make_shared<Elevator>(Elevator::Direction::UP, engBotY, engTopY, 1.0f);
             el->SetScale(mapScale);
@@ -436,7 +499,7 @@ void App::LoadLevel(int level) {
             m_Renderer.AddChild(el);
         }
 
-        // 5. 建立右側「下降」電梯 (DOWN)
+        // 建立右側「下降」電梯 (DOWN)
         for (float currY = logicTopY; currY <= logicBotY; currY += logicSpacing) {
             auto el = std::make_shared<Elevator>(Elevator::Direction::DOWN, engBotY, engTopY, 1.0f);
             el->SetScale(mapScale);
@@ -444,6 +507,28 @@ void App::LoadLevel(int level) {
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
+
+        float leftElX = CoordinateManager::LogicToEngine({logicLeftX, 0.0f}).x;
+        float rightElX = CoordinateManager::LogicToEngine({logicRightX, 0.0f}).x;
+
+        auto createStop = [&](float x, float y, bool upsideDown) {
+            auto stop = std::make_shared<Character>(RESOURCE_DIR"/Images/ElevatorStop.png");
+            stop->SetZIndex(40);
+            if (upsideDown) {
+                stop->SetScale({mapScale.x * 2.0f, -mapScale.y * 2.0f});
+            } else {
+                stop->SetScale(mapScale * 2.0f);
+            }
+            stop->SetPosition({x, y});
+            m_ElevatorStops.push_back(stop);
+            m_Renderer.AddChild(stop);
+        };
+        // 傳入精準的邏輯轉換世界座標，並結合高低微調
+        createStop(leftElX,  engTopY - 4.0f * mapScale.y, false); // 左上
+        createStop(leftElX,  engBotY - 7.0f * mapScale.y, true);  // 左下
+        createStop(rightElX, engTopY - 4.0f * mapScale.y, false); // 右上
+        createStop(rightElX, engBotY - 7.0f * mapScale.y, true);  // 右下
+
     } else if (m_CurrentStage == App::Stage::RIVETS) {
         const auto& data = m_Map->GetLevelData();
         for (int y = 0; y < data.GetHeight(); ++y) {
@@ -452,15 +537,11 @@ void App::LoadLevel(int level) {
                     auto rivet = std::make_shared<Character>(RESOURCE_DIR"/Images/rivet.png");
                     rivet->SetScale({m_Mario->marioScale*1.5f, m_Mario->marioScale*1.5f});
                     rivet->SetZIndex(-5);
-                    // 1. 取得地圖網格的原始中心座標
+
                     glm::vec2 rivetPos = m_Map->GetTileWorldPosition(x, y);
-
-                    // 2. 往下微調（例如 -15.0f，你可以根據畫面感覺把數字調大或調小）
-                    // 乘上 GetScaleRatio() 可確保切換 600x800 或 720x1080 時，偏移的相對距離不變
                     rivetPos.y -= 15.0f * CoordinateManager::GetScaleRatio();
-
-                    // 3. 套用微調後的新座標
                     rivet->SetPosition(rivetPos);
+
                     m_RivetVisuals[{x, y}] = rivet;
                     m_Renderer.AddChild(rivet);
                     m_RivetCount++;
@@ -508,7 +589,7 @@ void App::Start() {
     m_Renderer.AddChild(m_HammerItem2);
 
     // 建構 Stage 1 背景中的固定酒桶堆 (位於 Donkey Kong 旁邊)
-    m_StaticBarrels = std::make_shared<Character>(RESOURCE_DIR"/Images/barrel00.png");
+    m_StaticBarrels = std::make_shared<Character>(RESOURCE_DIR"/Images/Barrel00.png");
     m_StaticBarrels->SetScale({m_Mario->marioScale / 1.0f, m_Mario->marioScale / 1.0f});
     m_StaticBarrels->SetZIndex(40); // 確保在角色層級之後
     m_Renderer.AddChild(m_StaticBarrels);
@@ -547,18 +628,34 @@ void App::Start() {
     // 初始化黑色遮蓋方塊 (用於 Stage 4 通關)
     // 假設你有一個小小的黑色圖片 black.png，我們將其放大以遮住中間梯子區域
     m_BlackCover = std::make_shared<Character>(RESOURCE_DIR"/Images/black.png");
-    m_BlackCover->SetZIndex(40); // 放在地圖之上，角色之下
-    m_BlackCover->SetScale({2.0f, 2.0f}); // 放大以遮蓋中間結構
+    m_BlackCover->SetZIndex(90); // 層級提高，遮住地圖與一般角色，但低於 HUD (100)
+    m_BlackCover->SetScale({1500.0f, 1500.0f}); // 放大到足以覆蓋全螢幕
     m_BlackCover->SetVisible(false);
     m_Renderer.AddChild(m_BlackCover);
 
-    // 初始化公主精靈 (Princess + Princess2/Princess3)
+    // 【新增】初始化過場文字物件
+    m_TransitionText = std::make_shared<Util::Text>(RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf", 20, "HOW HIGH CAN YOU GET?", Util::Color(255, 255, 255, 255));
+    m_TransitionTextObj = std::make_shared<Util::GameObject>();
+    m_TransitionTextObj->SetDrawable(m_TransitionText);
+    m_TransitionTextObj->SetZIndex(100);
+    m_TransitionTextObj->SetVisible(false);
+    m_Renderer.AddChild(m_TransitionTextObj);
+
+    // 初始化公主精靈 (Princess + Princess2/Princess3 + Princess_win)
     m_Princess = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
         RESOURCE_DIR"/Images/Princess.png",
         RESOURCE_DIR"/Images/Princess2.png",
-        RESOURCE_DIR"/Images/Princess3.png"
+        RESOURCE_DIR"/Images/Princess3.png",
+        RESOURCE_DIR"/Images/Princess_win.png" // Frame 3: 勝利圖案
     });
     m_Princess->SetZIndex(60); // 放在大金剛下方但角色上方
+
+    // 初始化心形圖案
+    m_Heart = std::make_shared<Character>(RESOURCE_DIR"/Images/heart.png");
+    m_Heart->SetZIndex(70); // 顯示在最上層
+    m_Heart->SetVisible(false);
+    m_Renderer.AddChild(m_Heart);
+
     // 先以 Mario 的縮放當作基準，之後依據各幀尺寸調整縮放以保持視覺位置不動
     m_Princess->SetScale({m_Mario->marioScale, m_Mario->marioScale});
     m_Princess->SetVisible(true);
@@ -582,6 +679,22 @@ void App::Start() {
     m_RightMask->SetZIndex(60);
     m_RightMask->SetVisible(false);
     m_Renderer.AddChild(m_RightMask);
+
+    // 【新增】初始化 Game Over 視覺物件 (小長方形黑塊 + 紅色文字)
+    m_GameOverBlock = std::make_shared<Character>(RESOURCE_DIR"/Images/black.png");
+    m_GameOverBlock->SetZIndex(110); // 確保在所有物件之上
+    m_GameOverBlock->SetScale({450.0f, 150.0f});
+    m_GameOverBlock->SetPosition({0.0f, 0.0f});
+    m_GameOverBlock->SetVisible(false);
+    m_Renderer.AddChild(m_GameOverBlock);
+
+    m_GameOverText = std::make_shared<Util::Text>(RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf", 30, "GAME OVER", Util::Color(255, 0, 0, 255));
+    m_GameOverTextObj = std::make_shared<Util::GameObject>();
+    m_GameOverTextObj->SetDrawable(m_GameOverText);
+    m_GameOverTextObj->SetZIndex(151); // 提高層級，確保在最上層
+    m_GameOverTextObj->m_Transform.translation = {0.0f, 0.0f}; // 強制定位在螢幕中心
+    m_GameOverTextObj->SetVisible(false);
+    m_Renderer.AddChild(m_GameOverTextObj);
 
     // 載入當前關卡 (這會負責載入地圖、設定角色的初始位置與重置狀態，也處理 DonkeyKong 給 Mario 的邊界傳遞)
     LoadLevel(m_CurrentLevel);
@@ -612,19 +725,151 @@ void App::Update() {
     else if (Util::Input::IsKeyDown(Util::Keycode::R)) {
         LoadLevel(m_CurrentLevel);
     }
+
+    // 【新增】處理 Game Over 狀態下的重啟邏輯
+    if (m_IsGameOver) {
+        if (Util::Input::IsKeyDown(Util::Keycode::R) || Util::Input::IsKeyDown(Util::Keycode::SPACE)) {
+            m_IsGameOver = false;
+            m_GameOverBlock->SetVisible(false);
+            m_GameOverTextObj->SetVisible(false);
+            m_CurrentLevel = 1;
+            m_HUDText->Init(); // 這會同時重置分數、Bonus 與生命值
+            LoadLevel(m_CurrentLevel);
+        }
+        m_Renderer.Update();
+        return;
+    }
 #endif
 
     // 1. 取得當前狀態，判定是否處於「可遊玩」狀態
     MarioState marioState = m_Mario->GetState();
     bool isPlaying = (marioState != MarioState::DEAD && marioState != MarioState::WIN);
+    float dt = static_cast<float>(Util::Time::GetDeltaTimeMs());
+
+    // --- 【新增】過場畫面處理 ---
+    if (m_InTransition) {
+        m_TransitionTimer -= dt;
+        m_BlackCover->SetVisible(true);
+        m_BlackCover->SetPosition({0.0f, 0.0f}); // 確保黑屏在畫面中央
+
+        m_BlackCover->SetScale({2000.0f, 2000.0f}); // 覆蓋全螢幕
+
+        // --- 初始化過場堆疊物件 (僅在過場開始時執行一次) ---
+        if (m_TransitionIcons.empty()) {
+            m_DonkeyKong->SetVisible(false); // 隱藏原本的 DK
+            m_Princess->SetVisible(false);   // 隱藏公主
+
+            int targetLevel = m_CurrentLevel + 1; // 準備進入的關卡
+            int displayCount = std::min(targetLevel, 6); // 最多顯示 6 層 (150m)
+
+            for (int i = 1; i <= displayCount; ++i) {
+                // 建立 Donkey 圖示
+                auto kong = std::make_shared<Character>(RESOURCE_DIR"/Images/height-kong.png");
+                // 建立高度文字圖示 (height-1.png, height-2.png...)
+                auto label = std::make_shared<Character>(RESOURCE_DIR"/Images/height-" + std::to_string(i) + ".png");
+
+                float yPos = -160.0f + (i - 1) * 90.0f; // 調整起始高度與每一層的向上間距
+                kong->SetPosition({40.0f, yPos});      // Donkey 在右側
+                label->SetPosition({-90.0f, yPos});    // 高度數字在左側
+
+                kong->SetScale(m_Map->GetScale() * 1.0f);  // 縮小倍率 1.5f
+                label->SetScale(m_Map->GetScale() * 1.0f);
+                kong->SetZIndex(95);
+                label->SetZIndex(95);
+
+                m_TransitionIcons.push_back(kong);
+                m_TransitionIcons.push_back(label);
+                m_Renderer.AddChild(kong);
+                m_Renderer.AddChild(label);
+            }
+
+            m_TransitionText->SetText("HOW HIGH CAN YOU GET?");
+            m_TransitionTextObj->m_Transform.translation = {0.0f, -270.0f}; // 調整文字在底部的座標
+            m_TransitionTextObj->SetVisible(true);
+        }
+
+        if (m_TransitionTimer <= 0.0f) {
+            // 清理過場物件
+            for (auto& icon : m_TransitionIcons) m_Renderer.RemoveChild(icon);
+            m_TransitionIcons.clear();
+
+            m_InTransition = false;
+            m_DonkeyKong->SetVisible(true);
+            m_TransitionTextObj->SetVisible(false);
+            m_CurrentLevel++;
+            LoadLevel(m_CurrentLevel); // 載入新關卡（這會自動隱藏 m_BlackCover）
+        }
+        m_HUDText->Update(dt);
+        m_Renderer.Update();
+        return; // 過場中不執行下方遊戲邏輯
+    }
+
+    // 更新得分視覺顯示的倒數計時與移除邏輯
+    // 放在 Update 開頭確保即使在 Freeze 期間也能處理消失
+    for (auto it = m_PointVisuals.begin(); it != m_PointVisuals.end(); ) {
+        it->remainingTimeMs -= dt;
+        if (it->remainingTimeMs <= 0.0f) {
+            m_Renderer.RemoveChild(it->character);
+            it = m_PointVisuals.erase(it);
+        } else {
+            ++it;
+        }
+    }
 
     // 當目前已經通關，並且處於勝利狀態時，我們讓玩家按下按鈕後可以自動進到下一關
     if (marioState == MarioState::WIN) {
 
-        // --- Stage 4 特有的通關動畫：中間垮掉，DK 掉下去 ---
-        if (m_CurrentStage == App::Stage::RIVETS) {
+        // --- 【新增】勝利視覺表現 ---
+        if (m_Princess) {
+            m_Princess->SetCurrentFrame(3); // 切換到 Princess_win.png
+        }
+        if (m_Heart) {
+            m_Heart->SetVisible(true);
+            glm::vec2 pPos = m_Princess->GetPosition();
+            glm::vec2 mPos = m_Mario->GetPosition();
+            // 將心形放在兩人中間，稍微偏上方
+            m_Heart->SetPosition({(pPos.x + mPos.x) / 2.0f, pPos.y + 10.0f});
+            m_Heart->SetScale(m_Map->GetScale() * 1.5f);
+        }
+        // --- 【新增】Donkey Kong 撤退動畫 (Stage 1-3) ---
+        if (m_CurrentStage != Stage::RIVETS) {
+            if (m_DonkeyKong->GetBehavior() != DonkeyKong::Behavior::CLIMBING_AWAY &&
+                m_DonkeyKong->GetBehavior() != DonkeyKong::Behavior::CLIMBING_WITH_PRINCESS) {
+                m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::CLIMBING_AWAY);
+                // 將 DK 移動到公主下方的階梯位置 (通常在公主所在平台的階梯口)
+                glm::vec2 pPos = m_Princess->GetPosition();
+                // 調整 X 偏移量 (約 -85) 使其位於雙梯正中央，高度設在平台下方
+                m_DonkeyKong->SetPosition({pPos.x - 85.0f, pPos.y - 80.0f});
+                // 放大 Donkey Kong 的比例 (從原先縮小改為放大 1.2 倍)
+                // 這樣他的寬度就能夠涵蓋兩條並排的梯子
+                float dkScale = m_Mario->marioScale * 1.2f;
+                m_DonkeyKong->SetScale({dkScale, dkScale});
+            }
+
+            // 偵測高度：當 DK 爬到與公主相同高度時，觸發抓走公主的劇情
+            if (m_DonkeyKong->GetBehavior() == DonkeyKong::Behavior::CLIMBING_AWAY) {
+                if (m_DonkeyKong->GetPosition().y >= m_Princess->GetPosition().y) {
+                    m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::CLIMBING_WITH_PRINCESS);
+                    m_Princess->SetVisible(false); // 隱藏原本的公主
+                    m_Heart->SetImage(RESOURCE_DIR"/Images/heart_broken.png"); // 愛心碎裂
+                    LOG_DEBUG("Donkey Kong kidnapped the Princess!");
+                }
+            }
+
+            // 【自動觸發過場】當 Donkey Kong 抱著公主爬出畫面頂端時，自動進入過場
+            if (m_DonkeyKong->GetBehavior() == DonkeyKong::Behavior::CLIMBING_WITH_PRINCESS &&
+                m_DonkeyKong->GetPosition().y > halfHeight + 50.0f) {
+                m_InTransition = true;
+                m_TransitionTimer = 2500.0f; // 顯示 2.5 秒
+            }
+
+            m_DonkeyKong->Update(); // 勝利時也需要驅動 DK 的 Update 以執行爬行位移
+        }
+
+        // --- Stage 4 特有的通關動畫：DK 掉下去後自動進入過場 ---
+        if (m_CurrentStage == Stage::RIVETS) {
             m_BlackCover->SetVisible(true);
-            m_BlackCover->SetPosition({0.0f, -45.0f}); // 根據地圖位置調整，遮住中間結構
+            m_BlackCover->SetPosition({0.0f, -45.0f}); // 僅遮住中間結構，保留兩側地圖
 
             // 讓 Donkey Kong 持續下墜
             glm::vec2 dkPos = m_DonkeyKong->GetPosition();
@@ -640,18 +885,32 @@ void App::Update() {
                 }
 
                 m_DonkeyKong->Update();
+            } else {
+                // 當 DK 掉到底部後，自動觸發全黑屏過場
+                if (!m_InTransition) {
+                    m_InTransition = true;
+                    m_TransitionTimer = 3000.0f;
+                }
             }
-            //m_DonkeyKong->Update(); // 如果要 DK 掉落時仍有搥胸動作
         }
+    }
 
-        // 等待玩家按下任意前進按鈕 (例如跳躍鍵 SPACE 或 RETURN 鍵)
-        if (Util::Input::IsKeyDown(Util::Keycode::SPACE) || Util::Input::IsKeyDown(Util::Keycode::RETURN)) {
-            //if (m_CurrentLevel != 4)
-            {
-                m_CurrentLevel++;
-                LoadLevel(m_CurrentLevel);
-            }
+    // --- 【新增】死亡後續處理：生命值減少與 Game Over 判定 ---
+    if (marioState == MarioState::DEAD && m_Mario->IsDeathAnimationDone()) {
+        m_HUDText->DecreaseLife();
+        if (m_HUDText->GetLives() <= 0) {
+            // 進入 Game Over 狀態
+            m_IsGameOver = true;
+            m_Mario->SetPosition({0.0f, -2000.0f}); // 將 Mario 移出畫面
+            m_GameOverBlock->SetVisible(true);
+            m_GameOverBlock->SetZIndex(150); // 確保黑塊在 HUD 之上
+            m_GameOverTextObj->SetVisible(true);
+        } else {
+            // 生命還夠，重新載入當前關卡
+            LoadLevel(m_CurrentLevel);
         }
+        m_Renderer.Update();
+        return;
     }
 
     // 告訴渲染器，把所有 AddChild 進來的物件畫到畫面上 (包含你的地圖)
@@ -909,6 +1168,7 @@ void App::Update() {
                         m_RivetVisuals.erase(rivetKey);
                         m_RivetCount--;
                         m_HUDText->AddScore(100);
+                        SpawnPointVisual(m_ActiveRivetPos, 100);
                         LOG_INFO("Rivet removed at ({},{}), remaining: {}", rx, ry, m_RivetCount);
 
                         if (m_RivetCount <= 0) {
@@ -1030,11 +1290,6 @@ void App::Update() {
                     if (ladderOk) {
                         m_Mario->Climb(CLIMB_DIR::UP);
                     }
-
-                    glm::vec2 pos = m_Mario->GetPosition();
-                    if (pos.y >= (halfHeight - 50.0f)) {
-                        m_Mario->Win();
-                    }
                 }
             }
             // 向下攀爬
@@ -1081,6 +1336,29 @@ void App::Update() {
             }
         }
 
+        // 3.5 電梯擋板碰撞偵測
+        for (auto& stop : m_ElevatorStops) {
+            if (stop->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                glm::vec2 mPos = m_Mario->GetPosition();
+                glm::vec2 sPos = stop->GetPosition();
+                glm::vec2 mSize = m_Mario->GetSize();
+                glm::vec2 sSize = stop->GetSize();
+
+                // 找出最小推擠量
+                float overlapX = (mSize.x + sSize.x) / 2.0f - std::abs(mPos.x - sPos.x);
+                float overlapY = (mSize.y + sSize.y) / 2.0f - std::abs(mPos.y - sPos.y);
+
+                if (overlapX < overlapY) {
+                    if (mPos.x < sPos.x) mPos.x -= overlapX;
+                    else mPos.x += overlapX;
+                } else {
+                    if (mPos.y < sPos.y) mPos.y -= overlapY;
+                    else mPos.y += overlapY;
+                }
+                m_Mario->SetPosition(mPos);
+            }
+        }
+
         // 4. 更新火球移動邏輯 (如果火球可見)
         if (m_Fireball->GetVisibility()) {
             m_Fireball->Update();
@@ -1114,6 +1392,51 @@ void App::Update() {
             if (m_HammerItem2->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
                 m_Mario->WaitForHammer();
                 m_HammerItem2->SetVisible(false);
+            }
+        }
+
+        // 6.2 道具偵測：雨傘 (Umbrella)
+        for (auto it = m_Umbrellas.begin(); it != m_Umbrellas.end(); ) {
+            if ((*it)->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                glm::vec2 pos = (*it)->GetPosition();
+                m_HUDText->AddScore(300); // 加上 300 分
+                m_Renderer.RemoveChild(*it);
+                it = m_Umbrellas.erase(it);
+                SpawnPointVisual(pos, 300);
+                LOG_DEBUG("Mario picked up an umbrella! +300 points.");
+            } else {
+                ++it;
+            }
+        }
+
+        // 6.3 道具偵測：皮包 (Purse)
+        for (auto it = m_Purses.begin(); it != m_Purses.end(); ) {
+            if ((*it)->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+                glm::vec2 pos = (*it)->GetPosition();
+                m_HUDText->AddScore(500); // 加上 500 分
+                m_Renderer.RemoveChild(*it);
+                it = m_Purses.erase(it);
+                SpawnPointVisual(pos, 500);
+                LOG_DEBUG("Mario picked up a purse! +500 points.");
+            } else {
+                ++it;
+            }
+        }
+
+        // 6.5 碰撞偵測：Mario 與公主 (m_Princess)
+        if (m_Princess && m_Princess->GetVisibility()) {
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            const auto princessPos = m_Princess->GetPosition();
+            const auto princessSize = m_Princess->GetSize();
+
+            const auto marioHalfSize = marioSize / 2.0f;
+            const auto princessHalfSize = princessSize / 2.0f;
+
+            if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
+                std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y) &&
+                marioPos.y >= (halfHeight - 50.0f)) {
+                m_Mario->Win();
             }
         }
 

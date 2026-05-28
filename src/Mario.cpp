@@ -490,3 +490,8 @@ void Mario::SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize)
     m_DonkeyKongPos = dkPos;
     m_DonkeyKongSize = dkSize;
 }
+
+bool Mario::IsDeathAnimationDone() const {
+    // 當狀態為 DEAD 且計時器超過最後一張定格圖出現的時間 (102.0f) 加上一段觀察停留時間
+    return m_CurrentState == MarioState::DEAD && m_DeadTimer >= 150.0f;
+}

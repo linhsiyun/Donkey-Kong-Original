@@ -95,6 +95,13 @@ HUDManager::HUDManager() {
 void HUDManager::Init() {
     currentScore = 0;
     scoreText->SetText(FormatInt(currentScore, 6));
+
+    // 【新增】初始化生命值顯示
+    mLives = 3;
+    for (auto& life : lifeObjects) {
+        life->SetVisible(true);
+    }
+
     ResetBonus(5000);
 }
 
@@ -144,4 +151,19 @@ void HUDManager::ResetBonus(int amount) {
     bonusTime = amount;
     bonusTimer = 0.0f;
     bonusText->SetText(FormatInt(bonusTime, 4));
+}
+
+void HUDManager::SetLevel(int level) {
+    this->level = level;
+    levelText->SetText("L=" + FormatInt(level, 2));
+}
+
+// 【新增】扣除生命值並隱藏對應圖示
+void HUDManager::DecreaseLife() {
+    if (mLives > 0) {
+        mLives--;
+        if (mLives < (int)lifeObjects.size()) {
+            lifeObjects[mLives]->SetVisible(false);
+        }
+    }
 }
