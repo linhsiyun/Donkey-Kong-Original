@@ -34,11 +34,43 @@ private:
 
 public:
     // 透過傳入兩個 Y 座標，可以在 App.cpp 中自由決定每一條伸縮梯子的移動幅度，而不需要修改類別內部的硬編碼。
-    MovingLadder(float x, float y1, float y2, Side side, LadderState initialState)
-        : Character(RESOURCE_DIR"/Images/Ladder2.png"), m_state(initialState), m_side(side), m_timer(0.0f), m_y1(y1), m_y2(y2) {
-        SetPosition({x, (initialState == LadderState::EXTENDED) ? y1 : y2});
+    MovingLadder(float logicX, float logicY1, float logicY2, Side side, LadderState initialState, glm::vec2 baseScale)
+        : Character(RESOURCE_DIR"/Images/Ladder2.png"), m_state(initialState), m_side(side), m_timer(0.0f){
+        // 1. 透過既有的 CoordinateManager，將直覺的地圖邏輯座標轉為引擎座標
+        glm::vec2 engPos1 = CoordinateManager::LogicToEngine({logicX, logicY1});
+        glm::vec2 engPos2 = CoordinateManager::LogicToEngine({logicX, logicY2});
+
+        // 2. 儲存轉換後的 Y 軸引擎座標，供狀態機 (Update) 使用
+        m_y1 = engPos1.y; // 伸長時的頂部 (引擎座標)
+        m_y2 = engPos2.y; // 縮回時的底部 (引擎座標)
+
+        // 3. 根據初始狀態，決定一開始要擺在 y1 還是 y2
+        float startY = (initialState == LadderState::EXTENDED) ? m_y1 : m_y2;
+        SetPosition({engPos1.x, startY});
+
+        // 4. 將縮放與 Z-Index 封裝在內部，外部就不需要再設定了！
         SetZIndex(10); // 確保在背景層，但可見
+
+        glm::vec2 originalScale = baseScale;
+        // 如果目前開啟了 600 模式，傳進來的 baseScale 已經被地圖縮小過了
+        // 我們要在這裡除以縮放比例，把它還原成在 720 模式下的原始大小
+        if (CoordinateManager::IS_600x800_MODE) {
+            float ratio = CoordinateManager::GetScaleRatio();
+            if (ratio > 0.0f) {
+                originalScale.x /= ratio;
+                originalScale.y /= ratio;
+            }
+        }
+        float fineTuneWidth  = 0.8642f; // 如果覺得梯子太細，可以改成 1.2f, 1.5f 等等來變寬
+        float fineTuneHeight = 1.0f; // 如果需要微調長度，可以調整這個倍率
+
+        glm::vec2 finalScale = { originalScale.x * fineTuneWidth, originalScale.y * fineTuneHeight };
+
+        // 2. 將還原且微調後的比例傳給 SetScale，讓底層系統去統一乘以一次縮放比例
+        SetScale(finalScale);
     }
+
+
 
     // 1. 線性插值 (Lerp)：公式 pos.y = startY + (endY - startY) * t 確保了梯子會隨著時間均勻移動。std::min(..., 1.0f) 則是為了防止計時器稍微超過總時間時導致座標衝過頭。
     // 2. 狀態同步：在 EXTENDED 與 RETRACTED 靜止狀態下，我們強制設定 pos.y 為 y1 或 y2，消除移動結束後可能存在的浮點數微小誤差。

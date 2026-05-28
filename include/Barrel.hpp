@@ -6,6 +6,7 @@
 #include <string>
 #include "Util/Renderer.hpp"
 #include "AnimatedCharacter.hpp"
+#include "Map.hpp"
 
 /*
     酒桶的圖片：
@@ -58,7 +59,14 @@ public:
     // 碰撞偵測
     [[nodiscard]] bool IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const;
 
+    void SetMap(std::shared_ptr<Map> map) { m_Map = map; }
+
+    // 讓外部在設定完木桶位置後，重置它的起跳高度基準
+    void ResetFallHeight(float currentY) { m_FallStartY = currentY; }
+
 private:
+    std::shared_ptr<Map> m_Map = nullptr;
+    float m_FallStartY = 0.0f;
     State m_State = State::ROLLING; // 預設為滾動狀態
     Direction m_Direction;          // 滾動方向
 

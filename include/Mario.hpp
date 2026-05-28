@@ -5,6 +5,7 @@
 #include "Util/Renderer.hpp"
 #include "Character.hpp"
 #include "AnimatedCharacter.hpp"
+#include "Map.hpp"
 
 // Mario 的狀態列舉，定義了 Mario 在遊戲中可能的各種行為狀態
 enum class MarioState {
@@ -78,15 +79,14 @@ public:
     // 設定 Donkey Kong 的邊界，Mario 不能移動到這個區域
     void SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize);
 
-    // 設定螢幕邊界限制
-    void SetScreenBounds(float halfWidth, float halfHeight);
-
-    const float marioScale = 2.5F;  // Mario 的縮放比例
+    void SetMap(std::shared_ptr<Map> map) { m_Map = map; }    const float marioScale = 2.5F;  // Mario 的縮放比例
     const float movingStep = 2.0F;  // 走路與跳躍速度
     const float climbingStep = 1.0F; // 攀爬速度
     bool IsJumping() const { return m_IsJumping; }
     bool IsDeathAnimationDone() const; // 【新增】判斷死亡動畫是否播放完畢
     float GetJumpTimer() const { return m_JumpTimer; } // 新增：取得跳躍計時器
+
+
 
 private:
     // 將所有動作圖層封裝在這裡：
@@ -120,8 +120,7 @@ private:
     glm::vec2 m_DonkeyKongPos = {0.0f, 0.0f}; // Donkey Kong 的位置
     glm::vec2 m_DonkeyKongSize = {0.0f, 0.0f}; // Donkey Kong 的尺寸
 
-    float m_ScreenHalfWidth = 0.0f;
-    float m_ScreenHalfHeight = 0.0f;
+    std::shared_ptr<Map> m_Map = nullptr;
 };
 
 #endif // MARIO_HPP

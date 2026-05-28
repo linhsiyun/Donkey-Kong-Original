@@ -6,6 +6,7 @@
 
 #include "Util/Animation.hpp"
 #include "Util/GameObject.hpp"
+#include "CoordinateManager.hpp"
 
 
 class AnimatedCharacter : public Util::GameObject {
@@ -16,6 +17,7 @@ public:
     // 參數說明：false (不自動播放), 500 (預設每幀間隔 500ms), false (預設不循環), 0 (從第 0 幀開始)
     explicit AnimatedCharacter(const std::vector<std::string>& AnimationPaths) {
         m_Drawable = std::make_shared<Util::Animation>(AnimationPaths, false, 500, false, 0);
+        SetScale({1.0f, 1.0f}); // 【新增】建構時強制觸發一次全域縮放計算
     }
 
     // 取得目前動畫是否設定為循環播放
@@ -58,7 +60,11 @@ public:
     [[nodiscard]] const glm::vec2& GetPosition() const { return m_Transform.translation; }
 
     // 取得角色目前的縮放比例
-    [[nodiscard]] const glm::vec2& GetScale() const { return m_Transform.scale; }
+    // [[nodiscard]] const glm::vec2& GetScale() const { return m_Transform.scale; }
+    // --------------------------------------------------------
+    // 【修改】讓外部邏輯拿到「原始的邏輯縮放值」
+    // --------------------------------------------------------
+    [[nodiscard]] const glm::vec2& GetScale() const { return m_LogicalScale; }
 
     // 取得角色目前是否設定為可見狀態
     [[nodiscard]] bool GetVisibility() const { return m_Visible; }
@@ -69,11 +75,24 @@ public:
     void SetPosition(const glm::vec2& Position) { m_Transform.translation = Position; }
 
     // 設定角色的長寬縮放比例
-    void SetScale(const glm::vec2& Scale) { m_Transform.scale = Scale; }
+    // void SetScale(const glm::vec2& Scale) { m_Transform.scale = Scale; }
+    // --------------------------------------------------------
+    // 【修改】設定縮放時，同時更新邏輯縮放，並讓實際渲染縮放乘上視窗比率
+    // --------------------------------------------------------
+    void SetScale(const glm::vec2& Scale) {
+        m_LogicalScale = Scale;
+        m_Transform.scale = Scale * CoordinateManager::GetScaleRatio();
+    }
 
     // 取得角色縮放後的實際尺寸 (以目前動畫幀為準)
+    // [[nodiscard]] glm::vec2 GetSize() const {
+    //     return std::dynamic_pointer_cast<Util::Animation>(m_Drawable)->GetSize() * glm::abs(GetScale());
+    // }
+    // --------------------------------------------------------
+    // 【修改】取得角色縮放後的實際尺寸 (確保碰撞框使用實際渲染出來的大小)
+    // --------------------------------------------------------
     [[nodiscard]] glm::vec2 GetSize() const {
-        return std::dynamic_pointer_cast<Util::Animation>(m_Drawable)->GetSize() * glm::abs(GetScale());
+        return std::dynamic_pointer_cast<Util::Animation>(m_Drawable)->GetSize() * glm::abs(m_Transform.scale);
     }
 
     // 停止播放動畫，並將畫面重置回到第 0 幀（初始狀態）
@@ -92,6 +111,12 @@ public:
         return animation->GetCurrentFrameIndex() == animation->GetFrameCount() - 1 &&
                animation->GetState() != Util::Animation::State::PLAY;
     }
+
+    private:
+    // --------------------------------------------------------
+    // 【新增】紀錄未縮放前的真實邏輯縮放值
+    // --------------------------------------------------------
+    glm::vec2 m_LogicalScale = {1.0f, 1.0f};
 
 };
 

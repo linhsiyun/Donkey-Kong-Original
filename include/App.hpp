@@ -125,6 +125,8 @@ private:
     std::map<std::pair<int, int>, std::shared_ptr<Character>> m_RivetVisuals;
     glm::vec2 m_ActiveRivetPos = {0.0f, 0.0f}; // 【新增】紀錄 Mario 目前正踩在哪個插銷的中心座標上
     bool m_HasActiveRivet = false;             // 【新增】標記目前是否正踩在插銷上
+    std::shared_ptr<Character> m_OilBarrel;
+    std::shared_ptr<AnimatedCharacter> m_BurningOilBarrel;
 };
 
 #endif

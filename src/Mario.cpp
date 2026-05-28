@@ -342,11 +342,6 @@ void Mario::Win() {
     //TODO: 這裡可以加入一些特殊邏輯，例如在 WIN 狀態下不能移動或跳躍，或者有個專屬的過場動畫等等
 }
 
-void Mario::SetScreenBounds(float halfWidth, float halfHeight) {
-    m_ScreenHalfWidth = halfWidth;
-    m_ScreenHalfHeight = halfHeight;
-}
-
 // 每幀更新：給 App的Update 呼叫
 void Mario::Update() {
 
@@ -453,14 +448,22 @@ void Mario::Update() {
     const auto mario_half_size = GetSize() / 2.0f;
 
     // --- A. 螢幕邊界檢查 ---
-    if (m_ScreenHalfWidth > 0 && m_ScreenHalfHeight > 0) {
-        float limitX = m_ScreenHalfWidth - mario_half_size.x;
-        float limitY = m_ScreenHalfHeight - mario_half_size.y;
+    if (m_Map) {
+        // X 軸邊界：地圖的最左與最右，往內縮減 Mario 本身的一半寬度
+        float limitLeft = m_Map->GetLeftBoundary() + mario_half_size.x;
+        float limitRight = m_Map->GetRightBoundary() - mario_half_size.x;
 
-        if (m_Position.x > limitX) m_Position.x = limitX;
-        if (m_Position.x < -limitX) m_Position.x = -limitX;
-        if (m_Position.y > limitY) m_Position.y = limitY;
-        if (m_Position.y < -limitY) m_Position.y = -limitY;
+        // Y 軸邊界：注意在世界座標中，Y 軸向上為正。
+        // 所以 Top 的數值比較大（要減去半高），Bottom 的數值比較小（要加上半高）
+        float limitTop = m_Map->GetTopBoundary() - mario_half_size.y;
+        float limitBottom = m_Map->GetBottomBoundary() + mario_half_size.y;
+
+        // 進行位置限制
+        if (m_Position.x < limitLeft) m_Position.x = limitLeft;
+        if (m_Position.x > limitRight) m_Position.x = limitRight;
+
+        if (m_Position.y > limitTop) m_Position.y = limitTop;
+        if (m_Position.y < limitBottom) m_Position.y = limitBottom;
     }
 
     // --- B. Donkey Kong 碰撞檢查 ---

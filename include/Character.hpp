@@ -6,6 +6,7 @@
 
 #include "Util/GameObject.hpp"
 #include "Util/Image.hpp"
+#include "CoordinateManager.hpp"
 
 class Character : public Util::GameObject {
 public:
@@ -29,7 +30,11 @@ public:
     [[nodiscard]] const glm::vec2& GetPosition() const { return m_Transform.translation; }
 
     // 取得角色的長寬縮放比例
-    [[nodiscard]] const glm::vec2& GetScale() const { return m_Transform.scale; }
+    // [[nodiscard]] const glm::vec2& GetScale() const { return m_Transform.scale; }
+    // --------------------------------------------------------
+    // 【修改】讓外部邏輯（如瑪利歐轉向、木桶判定）拿到「原始的邏輯縮放值」
+    // --------------------------------------------------------
+    [[nodiscard]] const glm::vec2& GetScale() const { return m_LogicalScale; }
 
     // 取得角色目前是否設定為可見狀態
     [[nodiscard]] bool GetVisibility() const { return m_Visible; }
@@ -41,7 +46,14 @@ public:
     void SetPosition(const glm::vec2& Position) { m_Transform.translation = Position; }
 
     // 設定角色的長寬縮放比例
-    void SetScale(const glm::vec2& Scale) { m_Transform.scale = Scale; }
+    // void SetScale(const glm::vec2& Scale) { m_Transform.scale = Scale; }
+    // --------------------------------------------------------
+    // 【修改】設定縮放時，同時更新邏輯縮放，並讓實際渲染縮放乘上視窗比率
+    // --------------------------------------------------------
+    void SetScale(const glm::vec2& Scale) {
+        m_LogicalScale = Scale;
+        m_Transform.scale = Scale * CoordinateManager::GetScaleRatio();
+    }
 
     // 取得角色縮放後的實際尺寸
     [[nodiscard]] glm::vec2 GetSize() const { return GetObjectSize(); }
@@ -84,6 +96,11 @@ private:
     [[nodiscard]] glm::vec2 GetObjectSize() const {
         return std::dynamic_pointer_cast<Util::Image>(m_Drawable)->GetSize() * glm::abs(m_Transform.scale);
     }
+
+    // --------------------------------------------------------
+    // 【新增】紀錄未縮放前的真實邏輯縮放值（預設為 1, 1）
+    // --------------------------------------------------------
+    glm::vec2 m_LogicalScale = {1.0f, 1.0f};
 
     // 紀錄目前的圖片檔案路徑
     std::string m_ImagePath;

@@ -4,6 +4,7 @@
 #include "Character.hpp"
 #include "config.hpp"
 #include "Setting.hpp"
+#include "CoordinateManager.hpp"
 
 static std::string FormatInt(int score, int width) {
     std::ostringstream ss;
@@ -12,14 +13,6 @@ static std::string FormatInt(int score, int width) {
 }
 
 HUDManager::HUDManager() {
-    // 透過 PTSD_Config 取得視窗大小
-#if VSCODE
-    float halfWidth = static_cast<float>(PTSD_Config::WINDOW_WIDTH) / 2.0f;
-    float halfHeight = static_cast<float>(PTSD_Config::WINDOW_HEIGHT) / 2.0f;
-#else
-    float halfWidth = static_cast<float>(WINDOW_WIDTH) / 2.0f;
-    float halfHeight = static_cast<float>(WINDOW_HEIGHT) / 2.0f;
-#endif
     // --- 這裡只設定一次 ---
     const std::string fontPath = RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf";
     //const int fontSize = 16;
@@ -31,30 +24,31 @@ HUDManager::HUDManager() {
     scoreObject = std::make_shared<Util::GameObject>();
     scoreObject->SetDrawable(scoreText);
     scoreObject->SetZIndex(100);  // HUD 應設為較高的 ZIndex 以顯示在最前方
-    scoreObject->m_Transform.translation = {-halfWidth + 100.0f, halfHeight - 50.0f /*25.0f*/};
+    scoreObject->m_Transform.translation = CoordinateManager::LogicToEngine({-60.0f, 50.0f});
     scoreObject->SetVisible(true);
 
     highScoreText = std::make_shared<Util::Text>(fontPath, 16, FormatInt(highScore, 6), white);
     highScoreObject = std::make_shared<Util::GameObject>();
     highScoreObject->SetDrawable(highScoreText);
     highScoreObject->SetZIndex(100);
-    //highScoreObject->m_Transform.translation = {0.0f, halfHeight - 25.0f};
-    highScoreObject->m_Transform.translation = {-halfWidth + 100.0f, halfHeight - 25.0f};
+    // 高分文字位置 (對應原先的 -halfWidth + 100.0f, halfHeight - 25.0f)
+    highScoreObject->m_Transform.translation = CoordinateManager::LogicToEngine({-60.0f, 25.0f});
     highScoreObject->SetVisible(true);
 
     levelText = std::make_shared<Util::Text>(fontPath, 16, "L=" + FormatInt(level,2), blue);
     levelObject = std::make_shared<Util::GameObject>();
     levelObject->SetDrawable(levelText);
     levelObject->SetZIndex(100);
-    levelObject->m_Transform.translation = {halfWidth - 75.0f, halfHeight - 50.0f};
+    // 關卡文字位置 (對應原先的 halfWidth - 75.0f, halfHeight - 50.0f)
+    levelObject->m_Transform.translation = CoordinateManager::LogicToEngine({770.0f, 65.0f});
     levelObject->SetVisible(true);
-
 
     bonusText = std::make_shared<Util::Text>(fontPath, 16, std::to_string(bonusTime), white);
     bonusObject = std::make_shared<Util::GameObject>();
     bonusObject->SetDrawable(bonusText);
     bonusObject->SetZIndex(100);
-    bonusObject->m_Transform.translation = {halfWidth - 175.0f, halfHeight - 50.0f}; // 往下位移避免重疊
+    // Bonus 文字位置 (對應原先的 halfWidth - 175.0f, halfHeight - 50.0f)
+    bonusObject->m_Transform.translation = CoordinateManager::LogicToEngine({630.0f, 65.0f});
     bonusObject->SetVisible(true);
 
     // 在 currentScore 下方放置 3 個橫向排列的生命圖示
@@ -62,9 +56,12 @@ HUDManager::HUDManager() {
         auto lifeIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Walk0.png");
         lifeIcon->SetZIndex(100);
         lifeIcon->SetScale({1.0f, 1.0f}); // 縮小比例
-        float x = (-halfWidth + 60.0f) + (i * 22.0f); // 收緊間距
-        float y = halfHeight - 75.0f; // 50.0f;        // 往上移動緊貼分數
-        lifeIcon->SetPosition({x, y});
+
+        // 絕對邏輯座標 X=-110 起始，每個間距 22；Y 統一為 75
+        float logicX = -110.0f + (i * 22.0f);
+        float logicY = 75.0f;
+        lifeIcon->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
+
         lifeObjects.push_back(lifeIcon);
     }
 
@@ -72,30 +69,27 @@ HUDManager::HUDManager() {
     hammerIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
     hammerIcon->SetZIndex(100);
     hammerIcon->SetScale({1.5f, 1.5f}); // 縮小比例
-    hammerIcon->SetPosition({-halfWidth + 60.0f, halfHeight - 100.0f /*75.0f*/}); // 向上緊縮
+    hammerIcon->SetPosition(CoordinateManager::LogicToEngine({-110.0f, 100.0f})); // 對齊左側 X=-110，往下排 Y=100
 
     hammerCountText = std::make_shared<Util::Text>(fontPath, 16, " 0", white);
     hammerCountObject = std::make_shared<Util::GameObject>();
     hammerCountObject->SetDrawable(hammerCountText);
     hammerCountObject->SetZIndex(100);
-    hammerCountObject->m_Transform.translation = {-halfWidth + 95.0f, halfHeight - 100.0f/*75.0f*/};
+    hammerCountObject->m_Transform.translation = CoordinateManager::LogicToEngine({-70.0f, 100.0f}); // 文字靠右 X=-70
     hammerCountObject->SetVisible(true);
 
     // 在 Hammer 下方放置 Barrel 圖示與初始值 0
     barrelIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Barrel1.png");
     barrelIcon->SetZIndex(100);
     barrelIcon->SetScale({1.0f, 1.0f}); // 縮小比例
-    barrelIcon->SetPosition({-halfWidth + 60.0f, halfHeight - 125.0f /*100.0f*/}); // 向上緊縮
+    barrelIcon->SetPosition(CoordinateManager::LogicToEngine({-110.0f, 125.0f})); // 對齊左側 X=-110，再往下排 Y=125
 
     barrelCountText = std::make_shared<Util::Text>(fontPath, 16, " 0", white);
     barrelCountObject = std::make_shared<Util::GameObject>();
     barrelCountObject->SetDrawable(barrelCountText);
     barrelCountObject->SetZIndex(100);
-    barrelCountObject->m_Transform.translation = {-halfWidth + 95.0f, halfHeight - 125.0f /*100.0f*/};
+    barrelCountObject->m_Transform.translation = CoordinateManager::LogicToEngine({-70.0f, 125.0f}); // 文字靠右 X=-70
     barrelCountObject->SetVisible(true);
-
-    // 必須在所有物件 (scoreText 等) 都初始化完成後，才能呼叫 Init()
-    Init();
 }
 
 void HUDManager::Init() {

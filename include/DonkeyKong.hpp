@@ -8,6 +8,7 @@
 #include "Util/Renderer.hpp"
 #include "Character.hpp"
 #include "AnimatedCharacter.hpp"
+#include "Map.hpp"
 
 /*
   DK有5張圖：
@@ -32,6 +33,8 @@ public:
     // 步驟二：更新 DK 狀態 (根據時間改變動畫與觸發事件)
     void Update();
 
+    // 讓 DK 認識地圖，這對未來自動判定站在哪一層平台很有幫助
+    void SetMap(std::shared_ptr<Map> map) { m_Map = map; }
     // 步驟三：設定當 DK 轉頭到最後（向右看）的時候，要觸發的回呼函數（例如丟出酒桶）
     void SetBarrelSpawnCallback(const std::function<void()>& callback) {
         m_BarrelSpawnCallback = callback;
@@ -51,6 +54,11 @@ public:
     // 設定左右移動的 X 軸邊界
     void SetMoveBounds(float minX, float maxX) { m_MinX = minX; m_MaxX = maxX; }
 
+    // 輔助函式：檢查 DK 是否超出邊界
+    // 這能解決你說的「位置改了參數沒變」的問題，確保 Update 邏輯會參考這裡
+    float GetMinX() const { return m_MinX; }
+    float GetMaxX() const { return m_MaxX; }
+
 private:
     // 定義 DK 可能的兩種行為狀態
     enum class State {
@@ -59,12 +67,14 @@ private:
     };
 
     State m_State = State::CHEST_BEATING; // 一開始設定為搥胸狀態
+    std::shared_ptr<Map> m_Map = nullptr;
 
     // ===== 行為與移動參數 =====
     Behavior m_Behavior = Behavior::STATIONARY_LOOKING;
-    float m_MinX = 0.0f;
-    float m_MaxX = 0.0f;
-    float m_MoveSpeed = 50.0f; // 像素/秒
+    float m_MinX = -1000.0f; // 給予預設極大值避免一開始就觸發反轉
+    float m_MaxX = 1000.0f;
+    float m_MoveSpeed = 50.0f;
+    float m_MoveDirection = 1.0f; // 新增：控制移動方向
 
 
     // ===== 計時器區域 (毫秒為單位) =====

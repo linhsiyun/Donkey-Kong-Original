@@ -75,6 +75,7 @@ private:
     std::shared_ptr<Util::GameObject> barrelCountObject;
 
     float bonusTimer = 0.0f; // 用來計時 1 秒扣一次分數
+    int m_Level = 1;
 
 public:
     HUDManager();
@@ -88,9 +89,9 @@ public:
     // 提供 API 給其他物件呼叫
     void AddScore(int points);
     void ResetBonus(int amount = 5000);
-    void SetLevel(int level);
     void DecreaseLife();       // 【新增】扣除生命
     int GetLives() const { return mLives; } // 【新增】取得剩餘生命
     int GetBonus() { return bonusTime; }
+    void SetLevel(int level);
 };
 #endif // HUDMANAGER_HPP

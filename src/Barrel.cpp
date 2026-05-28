@@ -18,6 +18,10 @@ Barrel::Barrel(State state, Direction dir)
     // 步驟一：停止父類別預設的自動播放，我們要自己根據方向與狀態來控制圖片的切換
     Stop();
 
+    // 【核心修正】初始化時先預設一個極低位置或當前位置
+    // 更好的做法是在 App.cpp SetPosition 後再呼叫一個 Init 函式，
+    // 或是在 Update 的第一幀同步。
+    m_FallStartY = -9999.0f;
     // 初始化開始的圖片
     if (auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable)) {
         // 如果起始狀態是掉落，則設為掉落幀 (索引 4)；否則設為滾動幀 (索引 0)
@@ -30,77 +34,101 @@ Barrel::Barrel(State state, Direction dir)
 // 核心更新方法：處理狀態機動作、位置更新與動畫計時
 // =============================================
 void Barrel::Update() {
-    float dt = static_cast<float>(Util::Time::GetDeltaTimeMs()); // 取得經過毫秒數
-    float dtSec = dt / 1000.0f; // 換算為秒，用來計算像素移動距離
 
     auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
-    if (!anim) return; // 保護機制
+    if (!anim) return;
 
-    // 更新圖片切換計時器
-    m_AnimationTimer += dt;
+    // 取得時間差 (毫秒與秒)
+    float dtMs = static_cast<float>(Util::Time::GetDeltaTimeMs());
+    float dtSec = dtMs / 1000.0f;
 
-    // 取得目前的位置，用來套用新的偏移量
     glm::vec2 currentPos = GetPosition();
+    const auto barrel_half_size = GetSize() / 2.0f; // 取得木桶一半尺寸，用於腳底偵測
 
-    // 依據目前狀態更新動畫與位置
     if (m_State == State::ROLLING) {
-
         // --- 狀態 1：水平滾動 ---
-
-        // 1. 位置更新
         if (m_Direction == Direction::RIGHT) {
             currentPos.x += m_MoveSpeed * dtSec;
         } else {
             currentPos.x -= m_MoveSpeed * dtSec;
         }
 
-        // 2. 動畫更新 (每 100 毫秒切換一張圖)
-        if (m_AnimationTimer >= 100.0f) {
-            m_AnimationTimer = 0.0f;
-
+        // 動畫更新 (0~3)
+        m_AnimationTimer += dtMs;
+        if (m_AnimationTimer >= 150.0f) {
+            m_AnimationTimer -= 150.0f;
             if (m_Direction == Direction::RIGHT) {
-                // 向右：0 -> 1 -> 2 -> 3 -> 0 ...
-                m_CurrentFrame = (m_CurrentFrame + 1) % 4;
+                m_CurrentFrame = (m_CurrentFrame == 3) ? 0 : m_CurrentFrame + 1;
             } else {
-                // 向左：3 -> 2 -> 1 -> 0 -> 3 ...
-                if (m_CurrentFrame <= 0 || m_CurrentFrame > 3) {
-                    m_CurrentFrame = 3; // 修正如果原本在非0~3的範圍
-                } else {
-                    m_CurrentFrame--;
-                }
+                m_CurrentFrame = (m_CurrentFrame == 0) ? 3 : m_CurrentFrame - 1;
             }
             anim->SetCurrentFrame(m_CurrentFrame);
         }
 
+        // 【新增：地形偵測】如果離開了地板，開始掉落！
+        if (m_Map) {
+            // 探測腳底往下一點點的地形 (給定 2.0f 容錯值)
+            TileType footTile = m_Map->GetTileAtPosition(currentPos.x, currentPos.y - barrel_half_size.y - 2.0f);
+
+            // 如果腳下變成空氣，木桶從邊緣落下
+            if (footTile == TileType::EMPTY) {
+                m_State = State::FALLING_EDGE;
+                // 記錄開始掉落時的高度
+                m_FallStartY = currentPos.y;
+                m_CurrentFrame = 4; // 切換至落下圖
+                anim->SetCurrentFrame(m_CurrentFrame);
+            }
+        }
+
     } else if (m_State == State::FALLING_EDGE || m_State == State::FALLING_LADDER) {
-
-        // --- 狀態 2：往下掉落 (邊緣落下或爬梯子掉落) ---
-
-        // 1. 位置更新 (往下移動，Y 軸可能依據引擎座標系為減小或增加，這裡假設 Y 往下變小)
+        // --- 狀態 2：往下掉落 ---
+        // 為了看起來自然，落下時保留一點點 X 軸的慣性微幅移動
         if (m_Direction == Direction::RIGHT) {
-            currentPos.x += m_MoveSpeed * dtSec;
+            currentPos.x += (m_MoveSpeed * 0.1f) * dtSec;
         } else {
-            currentPos.x -= m_MoveSpeed * dtSec;
+            currentPos.x -= (m_MoveSpeed * 0.1f) * dtSec;
         }
         currentPos.y -= m_FallSpeed * dtSec;
 
-        // 2. 動畫更新 (掉落中的兩張圖片：索引 4 與 5)
+        // 動畫更新 (4與5輪播)
+        m_AnimationTimer += dtMs;
         if (m_AnimationTimer >= 150.0f) {
-            m_AnimationTimer = 0.0f;
-
-            // 在 4 (Barrel5.png) 與 5 (Barrel6.png) 之間切換
+            m_AnimationTimer -= 150.0f;
             m_CurrentFrame = (m_CurrentFrame == 4) ? 5 : 4;
             anim->SetCurrentFrame(m_CurrentFrame);
         }
+
+        // 【新增：地形偵測】如果碰到地板，著陸並反彈！
+        if (m_Map) {
+            TileType footTile = m_Map->GetTileAtPosition(currentPos.x, currentPos.y - barrel_half_size.y - 2.0f);
+
+            if (footTile == TileType::FLOOR) {
+                m_State = State::ROLLING;
+                // 【邏輯加強】檢查是否真的「大幅度掉落」
+                // 只有當 fallDistance 存在（不為初始值）且超過一層樓高時才反轉
+                if (m_FallStartY != -9999.0f) {
+                    float fallDistance = m_FallStartY - currentPos.y;
+                    float tileHeight = m_Map->GetTileHeight();
+
+                    // 只有掉落高度超過 1.5 倍格子，且這不是剛生成的「第一摔」
+                    if (fallDistance > tileHeight * 2.5f) {
+                        m_Direction = (m_Direction == Direction::LEFT) ? Direction::RIGHT : Direction::LEFT;
+                    }
+                }
+
+                m_CurrentFrame = 0;
+                anim->SetCurrentFrame(m_CurrentFrame);
+            }
+        }
     }
 
-    // 將計算後的新位置更新回角色上
-    SetPosition(currentPos);
+    // 【新增：回收機制】如果木桶掉出螢幕最下方，直接隱藏它
+    if (m_Map && currentPos.y < m_Map->GetBottomBoundary() - barrel_half_size.y) {
+        SetVisible(false); // 這樣 App 就可以在後台把隱藏的木桶清除掉
+    }
 
-    // TODO: 外部應在 App.cpp(Main Loop) 或 Map 處理中：
-    //  - 偵測是否抵達梯子或邊緣，並呼叫 SetState(State::FALLING_XXX)
-    //  - 偵測掉落到底部平台，並切換回 State::ROLLING，再改變方向(SetDirection)
-    //  - 偵測與 Mario 的碰撞或是否離開畫面以銷毀物件
+    // 寫入最終計算的座標
+    SetPosition(currentPos);
 }
 
 bool Barrel::IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const {
