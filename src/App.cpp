@@ -268,6 +268,7 @@ void App::LoadLevel(int level) {
         dkLogicPos = {120.0f, 165.0f};      // DK 在左上方平台
         marioLogicPos = {100.0f, 665.0f};    // Mario 在左下方起點
         dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
+        dkMinLogicX = 120.0f; dkMaxLogicX = 120.0f;
 
         if (m_StaticBarrels) {
             m_StaticBarrels->SetVisible(true);
@@ -302,11 +303,10 @@ void App::LoadLevel(int level) {
         if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
 
         // 第二關道具座標
-        m_Fireball->SetPosition({-100.0f, -70.0f});
+        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
         if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({510.0f, 480.5f}));
         if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({180.0f, 180.0f}));
 
-        float maskWidth = 100.0f;
         if (m_LeftMask) {
             m_LeftMask->SetVisible(true);
             m_LeftMask->SetPosition(CoordinateManager::LogicToEngine({-50.0f, 460.0f}));
@@ -317,28 +317,48 @@ void App::LoadLevel(int level) {
         }
 
         m_ConveyorSystem = std::make_shared<ConveyorSystem>();
-        float y1 = -160.0f;
-        float y2 = 55.0f;
+        // 1. 定義生成器在 720x720 空間中的「水平邏輯座標」
+        // 定義「下層軌道 (s1, s2)」的水平邏輯座標
+        // 【修正】因為底層軌道比較短，把起點往中間移，確保箱車一出生能踩在傳送帶上！
+        float logicX1_left  = 160.0f; // 根據你的地圖，這裡可能需要微調 (例如 150~200 之間)
+        float logicX1_right = 540.0f; // 根據你的地圖，這裡可能需要微調 (例如 520~560 之間)
+
+        // 定義「中層軌道 (s3, s4)」的水平邏輯座標 (中層較長，可維持在畫面邊緣)
+        float logicX2_left  = 10.0f;
+        float logicX2_right = 710.0f;
+
+        // 2. 定義兩條軌道的「垂直邏輯座標」
+        // (依據公式：logicY = 360.0f - engineY 反推而得)
+        float spawnerY1 = 557.0f; // 對應原本下方軌道
+        float spawnerY2 = 300.0f; // 對應原本上方軌道
+
+        // 3. 建立生成器，並統一透過 LogicToEngine 進行自動座標轉換與縮放
         auto s1 = std::make_shared<CementSpawner>(TileType::CONVEYOR1, CementSpawner::Side::LEFT);
-        s1->SetPosition({-350.0f, y1});
+        s1->SetPosition(CoordinateManager::LogicToEngine({logicX1_left, spawnerY1}));
+
         auto s2 = std::make_shared<CementSpawner>(TileType::CONVEYOR1, CementSpawner::Side::RIGHT);
-        s2->SetPosition({350.0f, y1});
+        s2->SetPosition(CoordinateManager::LogicToEngine({logicX1_right, spawnerY1}));
+
         auto s3 = std::make_shared<CementSpawner>(TileType::CONVEYOR2, CementSpawner::Side::LEFT);
-        s3->SetPosition({-350.0f, y2});
+        s3->SetPosition(CoordinateManager::LogicToEngine({logicX2_left, spawnerY2}));
+
         auto s4 = std::make_shared<CementSpawner>(TileType::CONVEYOR3, CementSpawner::Side::RIGHT);
-        s4->SetPosition({350.0f, y2});
+        s4->SetPosition(CoordinateManager::LogicToEngine({logicX2_right, spawnerY2}));
+        // 4. 塞入容器並加入渲染器
         m_CementSpawners = {s1, s2, s3, s4};
         for(auto& s : m_CementSpawners) m_Renderer.AddChild(s);
 
-        float ladderY1 = 110.0f;
-        float ladderY2 = 65.0f;
-        auto leftLadder = std::make_shared<MovingLadder>(-247.0f, ladderY1, ladderY2, MovingLadder::Side::LEFT, LadderState::EXTENDED);
-        auto rightLadder = std::make_shared<MovingLadder>(247.0f, ladderY1, ladderY2, MovingLadder::Side::RIGHT, LadderState::RETRACTED);
+        // 1. 定義梯子伸長與縮回的「邏輯 Y 座標」(0~720，越往下數字越大)
+        float logicY1 = 232.0f;
+        float logicY2 = 280.0f;
+
+        // 重新拿回地圖的基礎縮放比例 (自動包含地圖原本的放大倍率)
         glm::vec2 mapScale = m_Map->GetScale();
-        leftLadder->SetScale(mapScale);
-        rightLadder->SetScale(mapScale);
-        leftLadder->SetZIndex(10);
-        rightLadder->SetZIndex(10);
+
+        // 2. 建立梯子，把 mapScale 當作最後一個參數帶入
+        auto leftLadder = std::make_shared<MovingLadder>(64.0f, logicY1, logicY2, MovingLadder::Side::LEFT, LadderState::EXTENDED, mapScale);
+        auto rightLadder = std::make_shared<MovingLadder>(656.0f, logicY1, logicY2, MovingLadder::Side::RIGHT, LadderState::RETRACTED, mapScale);
+        // 3. 加入陣列與渲染器 (不需要再呼叫 SetScale 和 SetZIndex 了，因為建構子已經做好了！)
         m_MovingLadders.push_back(leftLadder);
         m_MovingLadders.push_back(rightLadder);
         m_Renderer.AddChild(leftLadder);
@@ -349,7 +369,7 @@ void App::LoadLevel(int level) {
         dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
         dkMinLogicX = 120.0f; dkMaxLogicX = 120.0f; // 原地搥胸
         if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
-        // 第三關道具座標 (如果沒有就不設定，或放預設位置)
+        // 第三關道具座標
         m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
     } else if (m_CurrentStage == App::Stage::RIVETS) {
         dkLogicPos = {360.0f, 110.0f};      // DK 在頂端中心
@@ -359,7 +379,7 @@ void App::LoadLevel(int level) {
         if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
 
         // 第四關道具座標 (這就是原本右邊程式碼裡的設定)
-        m_Fireball->SetPosition({-100.0f, -70.0f});
+        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
         if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({80.0f, 470.0f}));
         if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({180.0f, 180.0f}));
 
@@ -376,36 +396,51 @@ void App::LoadLevel(int level) {
     // A. 設定 Mario 位置
     m_Mario->SetPosition(CoordinateManager::LogicToEngine(marioLogicPos));
 
+    // 1. 轉換大金剛的站立座標
     glm::vec2 dkEngineFoot = CoordinateManager::LogicToEngine(dkLogicPos);
+
+    // (註：保留了你原本加上的半高 Y 軸補償，避免大金剛半截身體陷進地板裡)
     float dkSpawnY = dkEngineFoot.y + (m_DonkeyKong->GetSize().y / 2.0f);
     m_DonkeyKong->SetPosition({dkEngineFoot.x, dkSpawnY});
-
-    float engMinX = CoordinateManager::LogicToEngine({dkMinLogicX, 0.0f}).x;
-    float engMaxX = CoordinateManager::LogicToEngine({dkMaxLogicX, 0.0f}).x;
-    m_DonkeyKong->SetMoveBounds(engMinX, engMaxX);
     m_DonkeyKong->SetBehavior(dkBehavior);
+
+    // 2. 轉換大金剛的左右巡邏邊界（只取轉換後的 X 軸）
+    float engineMinX = CoordinateManager::LogicToEngine({dkMinLogicX, 0.0f}).x;
+    float engineMaxX = CoordinateManager::LogicToEngine({dkMaxLogicX, 0.0f}).x;
+    m_DonkeyKong->SetMoveBounds(engineMinX, engineMaxX);
 
     // --- 5. 處理各關卡特殊物件 (電梯、插銷) ---
     if (m_CurrentStage == App::Stage::ELEVATORS) {
-        glm::vec2 mapScale = m_Map->GetScale();
-        float elevatorTopY = CoordinateManager::LogicToEngine({0.0f, 130.0f}).y;
-        float elevatorBotY = CoordinateManager::LogicToEngine({0.0f, 680.0f}).y;
-        float spacing = 150.0f * mapScale.y;
+        // 1. 定義電梯的上下極限邊界 (邏輯 Y 座標)
+        float logicTopY = 200.0f;
+        float logicBotY = 680.0f;
 
-        float leftX = CoordinateManager::LogicToEngine({215.0f, 0.0f}).x;
-        for (float y = elevatorBotY; y <= elevatorTopY; y += spacing) {
-            auto el = std::make_shared<Elevator>(Elevator::Direction::UP, elevatorBotY, elevatorTopY, 1.0f);
+        // 2. 定義左右兩部電梯的軌道位置 (對齊畫面紅線)
+        float logicLeftX = 130.0f;
+        float logicRightX = 335.0f;
+
+        // 3. 定義相鄰兩塊電梯踏板之間的間距
+        float logicSpacing = 160.0f;
+
+        // 轉換為引擎座標
+        float engTopY = CoordinateManager::LogicToEngine({0.0f, logicTopY}).y;
+        float engBotY = CoordinateManager::LogicToEngine({0.0f, logicBotY}).y;
+        glm::vec2 mapScale = m_Map->GetScale();
+
+        // 4. 建立左側「上升」電梯 (UP)
+        for (float currY = logicBotY; currY >= logicTopY; currY -= logicSpacing) {
+            auto el = std::make_shared<Elevator>(Elevator::Direction::UP, engBotY, engTopY, 1.0f);
             el->SetScale(mapScale);
-            el->SetPosition({leftX, y});
+            el->SetPosition(CoordinateManager::LogicToEngine({logicLeftX, currY}));
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
 
-        float rightX = CoordinateManager::LogicToEngine({345.0f, 0.0f}).x;
-        for (float y = elevatorTopY; y >= elevatorBotY; y -= spacing) {
-            auto el = std::make_shared<Elevator>(Elevator::Direction::DOWN, elevatorBotY, elevatorTopY, 1.0f);
+        // 5. 建立右側「下降」電梯 (DOWN)
+        for (float currY = logicTopY; currY <= logicBotY; currY += logicSpacing) {
+            auto el = std::make_shared<Elevator>(Elevator::Direction::DOWN, engBotY, engTopY, 1.0f);
             el->SetScale(mapScale);
-            el->SetPosition({rightX, y});
+            el->SetPosition(CoordinateManager::LogicToEngine({logicRightX, currY}));
             m_Elevators.push_back(el);
             m_Renderer.AddChild(el);
         }
@@ -415,9 +450,17 @@ void App::LoadLevel(int level) {
             for (int x = 0; x < data.GetWidth(); ++x) {
                 if (data.GetTile(x, y) == TileType::RIVET) {
                     auto rivet = std::make_shared<Character>(RESOURCE_DIR"/Images/rivet.png");
-                    rivet->SetScale({m_Mario->marioScale, m_Mario->marioScale});
+                    rivet->SetScale({m_Mario->marioScale*1.5f, m_Mario->marioScale*1.5f});
                     rivet->SetZIndex(-5);
-                    rivet->SetPosition(m_Map->GetTileWorldPosition(x, y));
+                    // 1. 取得地圖網格的原始中心座標
+                    glm::vec2 rivetPos = m_Map->GetTileWorldPosition(x, y);
+
+                    // 2. 往下微調（例如 -15.0f，你可以根據畫面感覺把數字調大或調小）
+                    // 乘上 GetScaleRatio() 可確保切換 600x800 或 720x1080 時，偏移的相對距離不變
+                    rivetPos.y -= 15.0f * CoordinateManager::GetScaleRatio();
+
+                    // 3. 套用微調後的新座標
+                    rivet->SetPosition(rivetPos);
                     m_RivetVisuals[{x, y}] = rivet;
                     m_Renderer.AddChild(rivet);
                     m_RivetCount++;
