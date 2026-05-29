@@ -79,7 +79,8 @@ public:
     // 設定 Donkey Kong 的邊界，Mario 不能移動到這個區域
     void SetDonkeyKongBounds(const glm::vec2& dkPos, const glm::vec2& dkSize);
 
-    void SetMap(std::shared_ptr<Map> map) { m_Map = map; }    const float marioScale = 2.5F;  // Mario 的縮放比例
+    void SetMap(std::shared_ptr<Map> map) { m_Map = map; }
+    const float marioScale = 3.0F;  // Mario 的縮放比例
     const float movingStep = 2.0F;  // 走路與跳躍速度
     const float climbingStep = 1.0F; // 攀爬速度
     bool IsJumping() const { return m_IsJumping; }
