@@ -18,10 +18,18 @@
 static std::shared_ptr<Character> m_HammerItem;
 static std::shared_ptr<Character> m_HammerItem2;
 static std::shared_ptr<Character> m_StaticBarrels;
+static std::shared_ptr<AnimatedCharacter> m_FuelCan;
+static std::vector<std::shared_ptr<Character>> m_Ufos; // 用於管理 UFO 道具
 
 // 傳送帶關卡物件
 static std::shared_ptr<ConveyorSystem> m_ConveyorSystem;
 static std::vector<std::shared_ptr<CementSpawner>> m_CementSpawners;
+static std::shared_ptr<AnimatedCharacter> m_PivotLeft;
+static std::shared_ptr<AnimatedCharacter> m_PivotRight;
+static std::shared_ptr<AnimatedCharacter> m_PivotTopLeft;
+static std::shared_ptr<AnimatedCharacter> m_PivotTopRight;
+static std::shared_ptr<AnimatedCharacter> m_PivotMidLeft;
+static std::shared_ptr<AnimatedCharacter> m_PivotMidRight;
 
 /**
  * @brief 生成並初始化一個新的酒桶物件。
@@ -174,13 +182,43 @@ void App::UpdateCementPans(MarioState marioState) {
 
     for (auto it = m_CementPans.begin(); it != m_CementPans.end(); ) {
         auto& pan = *it;
-        pan->Update(m_Map, m_ConveyorSystem); // 執行物理與位移
+
+        glm::vec2 pos = pan->GetPosition();
+        const float midLayerY = 55.0f; // 中間層傳送帶的高度
+        const float fuelCanY = 20.0f;  // FuelCan 的目標高度
+
+        // 檢查是否處於「下墜中」狀態 (當 Y 座標稍微低於平台高度時即判定)
+        bool isFalling = (pos.y < midLayerY - 1.0f);
+
+        if (isFalling) {
+            float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
+            // 顯著降低下墜速度
+            pos.y -= 115.0f * dtSec;
+
+            // 增加向中心（油桶）匯聚的位移，讓水泥塊看起來是「掉進」油桶
+            if (pos.x > 2.0f) pos.x -= 40.0f * dtSec;
+            else if (pos.x < -2.0f) pos.x += 40.0f * dtSec;
+
+            pan->SetPosition(pos);
+            // 抵達油桶高度後正式移除
+            if (pos.y <= fuelCanY) {
+                m_Renderer.RemoveChild(pan);
+                it = m_CementPans.erase(it);
+                continue;
+            }
+        } else {
+            pan->Update(m_Map, m_ConveyorSystem); // 執行正常的傳送帶物理與位移
+        }
 
         // 碰撞偵測 (Mario)
         glm::vec2 marioSize = m_Mario->GetSize();
         if (marioState == MarioState::HAMMERING) marioSize *= 1.8f;
 
-        if (pan->IfCollides(m_Mario->GetPosition(), marioSize)) {
+        const auto panPos = pan->GetPosition();
+        const auto panSize = pan->GetSize();
+        const auto marioPos = m_Mario->GetPosition();
+        if (std::abs(panPos.x - marioPos.x) < (panSize.x + marioSize.x) / 2.0f &&
+            std::abs(panPos.y - marioPos.y) < (panSize.y + marioSize.y) / 2.0f) {
             if (marioState == MarioState::HAMMERING) {
                 // 搥擊成功：觸發特效、加分，並移除水泥塊
                 TriggerSmash(pan->GetPosition(), 500);
@@ -194,9 +232,37 @@ void App::UpdateCementPans(MarioState marioState) {
         }
 
         // 邊界檢查：掉出畫面外則銷毀
-        glm::vec2 pos = pan->GetPosition();
+        pos = pan->GetPosition();
+
+        // [新增] 掉落效果觸發邏輯：
+        // 當水泥在中間層（y=55）且接近中心區域時。
+         // 當水泥在中間層（y=55）且因為到達末端準備消失（ShouldRemove），且位於中心轉軸附近時
+        if (!isFalling && pan->ShouldRemove() && std::abs(pos.y - midLayerY) < 10.0f && std::abs(pos.x) < 65.0f) {
+            // 1. 切換圖片為 flip_cement.png
+            pan->SetImage(RESOURCE_DIR"/Images/flip_cement.png");
+
+            // [修正] 設定較低的 Z-Index (40)，確保它在 FuelCan (45) 的圖層下面
+            pan->SetZIndex(40);
+
+            // 2. 處理縮放與翻轉 (由右邊過來的 x 為正，需水平翻轉圖案)
+            float baseScale = m_Map->GetScale().x * 1.7f;
+            if (pos.x > 0) {
+                pan->SetScale({-baseScale, baseScale});
+            } else {
+                pan->SetScale({baseScale, baseScale});
+            }
+
+            // 3. 略微向下移動以脫離傳送帶判定區，進而觸發下一幀的 isFalling 邏輯
+            pos.y -= 2.0f;
+            pan->SetPosition(pos);
+
+            // 4. 攔截本次移除動作，讓它能繼續存在於列表中進行下墜動畫
+            ++it;
+            continue;
+        }
+
         // 允許水泥塊移動到 halfWidth 之外一段距離（如 50px），確保圖片完全消失後再移除
-        if (pan->ShouldRemove() || std::abs(pos.x) > halfWidth + 50.0f) {
+        if (!isFalling && (pan->ShouldRemove() || std::abs(pos.x) > halfWidth + 50.0f)) {
             m_Renderer.RemoveChild(pan);
             it = m_CementPans.erase(it);
         } else {
@@ -236,7 +302,7 @@ void App::SpawnPointVisual(glm::vec2 position, int score) {
     auto visual = std::make_shared<Character>(imagePath);
     visual->SetPosition(position);
     visual->SetZIndex(80); // 確保顯示在特效與角色之上
-    
+
     // 根據地圖縮放調整分數圖片大小
     visual->SetScale(m_Map->GetScale() * 1.8f); // 放大倍率調整為 1.8f，讓顯示更清楚
 
@@ -285,6 +351,10 @@ void App::LoadLevel(int level) {
     for (auto& p : m_Purses) m_Renderer.RemoveChild(p);
     m_Purses.clear();
 
+    // 每次載入關卡前先清除舊UFO
+    for (auto& u : m_Ufos) m_Renderer.RemoveChild(u);
+    m_Ufos.clear();
+
     // 清除舊電梯擋板
     for (auto& stop : m_ElevatorStops) m_Renderer.RemoveChild(stop);
     m_ElevatorStops.clear();
@@ -300,10 +370,19 @@ void App::LoadLevel(int level) {
     // 清除舊水泥塊
     for (auto& pan : m_CementPans) m_Renderer.RemoveChild(pan);
     m_CementPans.clear();
+    if (m_FuelCan) m_FuelCan->SetVisible(false);
 
     // 清除舊傳送帶 Spawners
     for (auto& s : m_CementSpawners) m_Renderer.RemoveChild(s);
     m_CementSpawners.clear();
+
+    // 清除舊轉軸
+    if (m_PivotLeft) { m_Renderer.RemoveChild(m_PivotLeft); m_PivotLeft.reset(); }
+    if (m_PivotRight) { m_Renderer.RemoveChild(m_PivotRight); m_PivotRight.reset(); }
+    if (m_PivotTopLeft) { m_Renderer.RemoveChild(m_PivotTopLeft); m_PivotTopLeft.reset(); }
+    if (m_PivotTopRight) { m_Renderer.RemoveChild(m_PivotTopRight); m_PivotTopRight.reset(); }
+    if (m_PivotMidLeft) { m_Renderer.RemoveChild(m_PivotMidLeft); m_PivotMidLeft.reset(); }
+    if (m_PivotMidRight) { m_Renderer.RemoveChild(m_PivotMidRight); m_PivotMidRight.reset(); }
 
     // 重置通關特效與大金剛狀態 (確保從 Stage 4 勝利後切換或重玩時狀態正確)
     if (m_BlackCover) m_BlackCover->SetVisible(false);
@@ -330,6 +409,7 @@ void App::LoadLevel(int level) {
     m_ActiveRivetPos = {0.0f, 0.0f};
     m_HasActiveRivet = false;
     m_RivetCount = 0;
+    m_InTransition = false;
     m_DKFallTimer = 0.0f;
 
     // 重置 Mario 以及其它遊戲角色的狀態與可見性 (移至開頭以統一管理)
@@ -345,7 +425,7 @@ void App::LoadLevel(int level) {
     // 重置 HUD 資訊
     if (m_HUDText) {
         // 修正：不要在這裡 Init，否則會把剩餘生命值洗回 3
-        m_HUDText->ResetBonus(5000);         
+        m_HUDText->ResetBonus(5000);
         m_HUDText->SetLevel(m_CurrentLevel); // 更新畫面上的 L=XX 文字
     }
 
@@ -415,15 +495,99 @@ void App::LoadLevel(int level) {
         m_CementSpawners = {s1, s2, s3, s4};
         for(auto& s : m_CementSpawners) m_Renderer.AddChild(s);
 
+        // --- Stage 2 轉軸配置 ---
+        glm::vec2 mapScale = m_Map->GetScale();
+
+        // 1. 左側轉軸 (第二層最左邊)
+        m_PivotLeft = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+            RESOURCE_DIR"/Images/pivot1.png",
+            RESOURCE_DIR"/Images/pivot2.png",
+            RESOURCE_DIR"/Images/pivot3.png"
+        });
+        m_PivotLeft->SetScale(mapScale * 2.0f);
+        m_PivotLeft->SetZIndex(40);
+        m_PivotLeft->SetPosition({-213.0f * mapScale.x, y2 - 236});
+        m_PivotLeft->SetInterval(500);
+        m_PivotLeft->SetLooping(true);
+        m_PivotLeft->Play();
+        m_Renderer.AddChild(m_PivotLeft);
+
+        // 2. 右側轉軸 (第二層最右邊，翻轉版本)
+        m_PivotRight = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+            RESOURCE_DIR"/Images/pivot1.png",
+            RESOURCE_DIR"/Images/pivot2.png",
+            RESOURCE_DIR"/Images/pivot3.png"
+        });
+        m_PivotRight->SetScale({-mapScale.x * 2.0f, mapScale.y * 2.0f}); // 水平翻轉
+        m_PivotRight->SetZIndex(40);
+        m_PivotRight->SetPosition({213.0f * mapScale.x, y2 - 236});
+        m_PivotRight->SetInterval(500);
+        m_PivotRight->SetLooping(true);
+        m_PivotRight->Play();
+        m_Renderer.AddChild(m_PivotRight);
+
+        // 3. 左側頂層轉軸 (Donkey 層，放大2倍)
+        m_PivotTopLeft = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+            RESOURCE_DIR"/Images/pivot1.png",
+            RESOURCE_DIR"/Images/pivot3.png",
+            RESOURCE_DIR"/Images/pivot2.png"
+        });
+        m_PivotTopLeft->SetScale(mapScale * 2.0f);
+        m_PivotTopLeft->SetZIndex(40);
+        m_PivotTopLeft->SetPosition({-213.0f * mapScale.x, halfHeight - 160.0f});
+        m_PivotTopLeft->SetInterval(500);
+        m_PivotTopLeft->SetLooping(true);
+        m_PivotTopLeft->Play();
+        m_Renderer.AddChild(m_PivotTopLeft);
+
+        // 4. 右側頂層轉軸 (Donkey 層，翻轉版本，放大2倍)
+        m_PivotTopRight = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+            RESOURCE_DIR"/Images/pivot1.png",
+            RESOURCE_DIR"/Images/pivot3.png",
+            RESOURCE_DIR"/Images/pivot2.png"
+        });
+        m_PivotTopRight->SetScale({-mapScale.x * 2.0f, mapScale.y * 2.0f}); // 水平翻轉
+        m_PivotTopRight->SetZIndex(40);
+        m_PivotTopRight->SetPosition({213.0f * mapScale.x, halfHeight - 160.0f});
+        m_PivotTopRight->SetInterval(500);
+        m_PivotTopRight->SetLooping(true);
+        m_PivotTopRight->Play();
+        m_Renderer.AddChild(m_PivotTopRight);
+
+        // 5. 中間層左側轉軸 (Fuel Can 旁，翻轉版本，放大2倍)
+        m_PivotMidLeft = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+            RESOURCE_DIR"/Images/pivot1.png",
+            RESOURCE_DIR"/Images/pivot3.png",
+            RESOURCE_DIR"/Images/pivot2.png"
+        });
+        m_PivotMidLeft->SetScale({-mapScale.x * 2.0f, mapScale.y * 2.0f}); // 水平翻轉
+        m_PivotMidLeft->SetZIndex(40);
+        m_PivotMidLeft->SetPosition({-30.0f * mapScale.x, 33.0f});
+        m_PivotMidLeft->SetInterval(500);
+        m_PivotMidLeft->SetLooping(true);
+        m_PivotMidLeft->Play();
+        m_Renderer.AddChild(m_PivotMidLeft);
+
+        // 6. 中間層右側轉軸 (Fuel Can 旁，不翻轉，放大2倍)
+        m_PivotMidRight = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+            RESOURCE_DIR"/Images/pivot1.png",
+            RESOURCE_DIR"/Images/pivot3.png",
+            RESOURCE_DIR"/Images/pivot2.png"
+        });
+        m_PivotMidRight->SetScale(mapScale * 2.0f);
+        m_PivotMidRight->SetZIndex(40);
+        m_PivotMidRight->SetPosition({30.0f * mapScale.x, 33.0f});
+        m_PivotMidRight->SetInterval(500);
+        m_PivotMidRight->SetLooping(true);
+        m_PivotMidRight->Play();
+        m_Renderer.AddChild(m_PivotMidRight);
+
         // 初始化兩側伸縮梯子 (座標需根據地圖實際梯子位置微調)
         float ladderY1 = 110.0f; // 伸長位置
         float ladderY2 = 65.0f; // 縮回位置 (向下移動約 48 像素)
 
         auto leftLadder = std::make_shared<MovingLadder>(-247.0f, ladderY1, ladderY2, MovingLadder::Side::LEFT, LadderState::EXTENDED);
         auto rightLadder = std::make_shared<MovingLadder>(247.0f, ladderY1, ladderY2, MovingLadder::Side::RIGHT, LadderState::RETRACTED);
-
-        // 取得地圖目前的縮放比例，確保梯子倍率與背景一致
-        glm::vec2 mapScale = m_Map->GetScale();
 
         // 設定梯子縮放與 ZIndex
         leftLadder->SetScale(mapScale);
@@ -437,11 +601,41 @@ void App::LoadLevel(int level) {
         m_Renderer.AddChild(leftLadder);
         m_Renderer.AddChild(rightLadder);
 
+        // --- 【新增】Stage 2 道具配置 ---
+        // 1. 皮包 (最下面那層)
+        auto p2 = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
+        p2->SetScale(mapScale * 2.0f);
+        p2->SetZIndex(40);
+        p2->SetPosition({50.0f, -halfHeight + 35.0f});
+        m_Purses.push_back(p2);
+        m_Renderer.AddChild(p2);
+
+        // 2. 雨傘 (中間層 y2=55.0f)
+        auto u2 = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
+        u2->SetScale(mapScale * 2.0f);
+        u2->SetZIndex(40);
+        u2->SetPosition({250.0f, y2 - 100.0f});
+        m_Umbrellas.push_back(u2);
+        m_Renderer.AddChild(u2);
+
+        // 3. UFO (中間層 y2=55.0f)
+        auto ufo2 = std::make_shared<Character>(RESOURCE_DIR"/Images/ufo.png");
+        ufo2->SetScale(mapScale * 2.0f);
+        ufo2->SetZIndex(40);
+        ufo2->SetPosition({-110.0f, y2 - 100.0f});
+        m_Ufos.push_back(ufo2);
+        m_Renderer.AddChild(ufo2);
+
+        // 設定中央的 Fuel Can 動畫
+        m_FuelCan->SetPosition({0.0f, 20.0f}); // 放置於螢幕中央稍偏上方
+        m_FuelCan->SetVisible(true);
+        m_FuelCan->SetScale(m_Map->GetScale() * 2.0f);
+
         // 第二關的各角色與道具初始位置 (目前暫時設定與第一關相同，之後你可以自由調整這組座標)
         m_Mario->SetPosition({-halfWidth + 50.0f, -halfHeight + 45.0f});
         m_Fireball->SetPosition({-100.0f, -70.0f});
-        if (m_HammerItem) m_HammerItem->SetPosition({150.0f, -120.5f});
-        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 180.0f, halfHeight - 180.0f});
+        if (m_HammerItem) m_HammerItem->SetPosition({0.0f, -120.5f});
+        if (m_HammerItem2) m_HammerItem2->SetPosition({-halfWidth + 50.0f, halfHeight - 290.0f});
 
         // 設定第二關 DK 會左右移動且只會搥胸
         m_DonkeyKong->SetPosition({-halfWidth + 110.0f, halfHeight - 110.0f});
@@ -481,7 +675,7 @@ void App::LoadLevel(int level) {
 
         // 1. 左邊最上層再往下一層 (DK 層下方)
         createUmbrella(-halfWidth + 30.0f, halfHeight - 260.0f);
-        
+
         // 2. 最右邊最上面那層
         createUmbrella(halfWidth - 25.0f, halfHeight - 175.0f);
 
@@ -563,6 +757,34 @@ void App::LoadLevel(int level) {
         if (m_Princess) {
             m_Princess->SetPosition({0.0f, halfHeight - 35});
         }
+
+        // --- Stage 4 道具配置 (位置與倍率調整) ---
+        glm::vec2 mapScale = m_Map->GetScale();
+
+        // 1. 皮包 (下方第一層正中間)
+        auto p = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
+        p->SetScale(mapScale * 2.0f);
+        p->SetZIndex(40);
+        p->SetPosition({40.0f, -halfHeight + 35.0f});
+        m_Purses.push_back(p);
+        m_Renderer.AddChild(p);
+
+        // 2. 雨傘 (跟 Donkey 同一層最左邊，由 1.5x 改為 2x)
+        auto u = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
+        u->SetScale(mapScale * 2.0f);
+        u->SetZIndex(40);
+        u->SetPosition({-halfWidth + 100.0f, halfHeight - 135.0f});
+        m_Umbrellas.push_back(u);
+        m_Renderer.AddChild(u);
+
+        // 3. UFO (第二層最右邊，由 1.5x 改為 2x)
+        auto ufo = std::make_shared<Character>(RESOURCE_DIR"/Images/ufo.png");
+        ufo->SetScale(mapScale * 2.0f);
+        ufo->SetZIndex(40);
+        ufo->SetPosition({halfWidth - 80.0f, -halfHeight + 150.0f});
+        m_Ufos.push_back(ufo);
+        m_Renderer.AddChild(ufo);
+
 
         const auto& data = m_Map->GetLevelData();
         for (int y = 0; y < data.GetHeight(); ++y) {
@@ -659,8 +881,8 @@ void App::Start() {
     // 初始化黑色遮蓋方塊 (用於 Stage 4 通關)
     // 假設你有一個小小的黑色圖片 black.png，我們將其放大以遮住中間梯子區域
     m_BlackCover = std::make_shared<Character>(RESOURCE_DIR"/Images/black.png");
-    m_BlackCover->SetZIndex(90); // 層級提高，遮住地圖與一般角色，但低於 HUD (100)
-    m_BlackCover->SetScale({1500.0f, 1500.0f}); // 放大到足以覆蓋全螢幕
+    m_BlackCover->SetZIndex(10); // 初始設為較低層級（在地圖 -10 之後，但在角色 50 之前）
+    m_BlackCover->SetScale({380.0f, 1000.0f}); 
     m_BlackCover->SetVisible(false);
     m_Renderer.AddChild(m_BlackCover);
 
@@ -692,6 +914,17 @@ void App::Start() {
     m_Princess->SetVisible(true);
     m_Princess->Stop();
     m_Princess->SetLooping(false);
+
+    // 初始化 Fuel Can 動畫 (用於 Stage 2)
+    m_FuelCan = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+        RESOURCE_DIR"/Images/fuel_can1.png",
+        RESOURCE_DIR"/Images/fuel_can2.png"
+    });
+    m_FuelCan->SetZIndex(45);
+    m_FuelCan->SetVisible(false);
+    m_FuelCan->SetLooping(true);
+    m_FuelCan->SetInterval(200); // 每 200ms 切換一次圖片
+    m_FuelCan->Play();
 
     m_Renderer.AddChild(m_Princess);
     m_Princess->Stop();
@@ -728,6 +961,7 @@ void App::Start() {
     m_Renderer.AddChild(m_GameOverTextObj);
 
     // 載入當前關卡 (這會負責載入地圖、設定角色的初始位置與重置狀態，也處理 DonkeyKong 給 Mario 的邊界傳遞)
+    m_Renderer.AddChild(m_FuelCan);
     LoadLevel(m_CurrentLevel);
 
     // 設定 App 物件初始狀態為 UPDATE，開始遊戲主迴圈
@@ -782,14 +1016,15 @@ void App::Update() {
         m_TransitionTimer -= dt;
         m_BlackCover->SetVisible(true);
         m_BlackCover->SetPosition({0.0f, 0.0f}); // 確保黑屏在畫面中央
-        
+        m_BlackCover->SetZIndex(90); // 過場時提升層級，遮住後方的遊戲角色
+
         m_BlackCover->SetScale({2000.0f, 2000.0f}); // 覆蓋全螢幕
 
         // --- 初始化過場堆疊物件 (僅在過場開始時執行一次) ---
         if (m_TransitionIcons.empty()) {
             m_DonkeyKong->SetVisible(false); // 隱藏原本的 DK
             m_Princess->SetVisible(false);   // 隱藏公主
-            
+
             int targetLevel = m_CurrentLevel + 1; // 準備進入的關卡
             int displayCount = std::min(targetLevel, 6); // 最多顯示 6 層 (150m)
 
@@ -849,7 +1084,7 @@ void App::Update() {
 
     // 當目前已經通關，並且處於勝利狀態時，我們讓玩家按下按鈕後可以自動進到下一關
     if (marioState == MarioState::WIN) {
-        
+
         // --- 【新增】勝利視覺表現 ---
         if (m_Princess) {
             m_Princess->SetCurrentFrame(3); // 切換到 Princess_win.png
@@ -857,9 +1092,8 @@ void App::Update() {
         if (m_Heart) {
             m_Heart->SetVisible(true);
             glm::vec2 pPos = m_Princess->GetPosition();
-            glm::vec2 mPos = m_Mario->GetPosition();
-            // 將心形放在兩人中間，稍微偏上方
-            m_Heart->SetPosition({(pPos.x + mPos.x) / 2.0f, pPos.y + 10.0f});
+            // 將心形固定放在公主右側 (約 +25 像素)，稍微偏上方 (+15 像素)
+            m_Heart->SetPosition({pPos.x + 25.0f, pPos.y + 15.0f});
             m_Heart->SetScale(m_Map->GetScale() * 1.5f);
         }
 
@@ -900,7 +1134,10 @@ void App::Update() {
 
         // --- Stage 4 特有的通關動畫：DK 掉下去後自動進入過場 ---
         if (m_CurrentStage == Stage::RIVETS) {
+            // 修正：黑幕只遮蓋中間結構，且層級設為 10 確保大金剛 (50) 在前方下墜
             m_BlackCover->SetVisible(true);
+            m_BlackCover->SetScale({380.0f, 1000.0f}); // 設定合適的寬度只遮住中間梯子區域
+            m_BlackCover->SetZIndex(10); 
             m_BlackCover->SetPosition({0.0f, -45.0f}); // 僅遮住中間結構，保留兩側地圖
 
             // 讓 Donkey Kong 持續下墜
@@ -921,7 +1158,7 @@ void App::Update() {
                 // 當 DK 掉到底部後，自動觸發全黑屏過場
                 if (!m_InTransition) {
                     m_InTransition = true;
-                    m_TransitionTimer = 3000.0f; 
+                    m_TransitionTimer = 3000.0f;
                 }
             }
         }
@@ -1208,12 +1445,12 @@ void App::Update() {
         if (m_Mario->IsJumping()) {
             // [跳躍落地判定]
             // 這裡除了計時器，也可以加入 Y 軸趨勢判斷
-            if (foundSurface && m_Mario->GetJumpTimer() > 17.5f) {
+            if (foundSurface && m_Mario->GetJumpTimer() > 10.0f) {
                 // 偵錯日誌：可以觀察落地時的 Y 座標落差
                 // LOG_DEBUG("Jump Landing Attempt: footY={}, targetFootY={}", footY, targetFootY);
                 m_Mario->Land(targetFootY);
             }
-            else if (m_Mario->GetJumpTimer() >= 35.0f) {
+            else if (m_Mario->GetJumpTimer() >= 25.0f) {
                 m_Mario->Fall();
             }
         }
@@ -1385,8 +1622,12 @@ void App::Update() {
         if (m_Fireball->GetVisibility()) {
             glm::vec2 marioSize = m_Mario->GetSize();
             if (m_Mario->GetState() == MarioState::HAMMERING) marioSize *= 1.8f;
-
-           if (m_Fireball->IfCollides(m_Mario->GetPosition(), marioSize)) {
+            
+            const auto firePos = m_Fireball->GetPosition();
+            const auto fireSize = m_Fireball->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            if (std::abs(firePos.x - marioPos.x) < (fireSize.x + marioSize.x) / 2.0f &&
+                std::abs(firePos.y - marioPos.y) < (fireSize.y + marioSize.y) / 2.0f) {
                 if (m_Mario->GetState() == MarioState::HAMMERING) {
                     TriggerSmash(m_Fireball->GetPosition(), 800);
                     m_Fireball->SetVisible(false); // 擊碎火球
@@ -1396,17 +1637,39 @@ void App::Update() {
             }
         }
 
+        // 5.1 碰撞偵測：Mario 與 Fuel Can (僅限第二關)
+        if (m_CurrentStage == Stage::CONVEYORS && m_FuelCan && m_FuelCan->GetVisibility()) {
+            const auto fuelPos = m_FuelCan->GetPosition();
+            const auto fuelSize = m_FuelCan->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            if (std::abs(fuelPos.x - marioPos.x) < (fuelSize.x + marioSize.x) / 2.0f &&
+                std::abs(fuelPos.y - marioPos.y) < (fuelSize.y + marioSize.y) / 2.0f) {
+                m_Mario->Dead();
+            }
+        }
+
         // 6. 道具偵測：撿起槌子
         MarioState s = m_Mario->GetState();
         bool canPickUp = (s == MarioState::JUMPING || s == MarioState::FALLING);
         if (m_HammerItem && m_HammerItem->GetVisibility() && canPickUp) {
-            if (m_HammerItem->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+            const auto itemPos = m_HammerItem->GetPosition();
+            const auto itemSize = m_HammerItem->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            if (std::abs(itemPos.x - marioPos.x) < (itemSize.x + marioSize.x) / 2.0f &&
+                std::abs(itemPos.y - marioPos.y) < (itemSize.y + marioSize.y) / 2.0f) {
                 m_Mario->WaitForHammer();
                 m_HammerItem->SetVisible(false);
             }
         }
         if (m_HammerItem2 && m_HammerItem2->GetVisibility() && canPickUp) {
-            if (m_HammerItem2->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+            const auto itemPos = m_HammerItem2->GetPosition();
+            const auto itemSize = m_HammerItem2->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            if (std::abs(itemPos.x - marioPos.x) < (itemSize.x + marioSize.x) / 2.0f &&
+                std::abs(itemPos.y - marioPos.y) < (itemSize.y + marioSize.y) / 2.0f) {
                 m_Mario->WaitForHammer();
                 m_HammerItem2->SetVisible(false);
             }
@@ -1414,13 +1677,19 @@ void App::Update() {
 
         // 6.2 道具偵測：雨傘 (Umbrella)
         for (auto it = m_Umbrellas.begin(); it != m_Umbrellas.end(); ) {
-            if ((*it)->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+            const auto itemPos = (*it)->GetPosition();
+            const auto itemSize = (*it)->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            if (std::abs(itemPos.x - marioPos.x) < (itemSize.x + marioSize.x) / 2.0f &&
+                std::abs(itemPos.y - marioPos.y) < (itemSize.y + marioSize.y) / 2.0f) {
                 glm::vec2 pos = (*it)->GetPosition();
-                m_HUDText->AddScore(300); // 加上 300 分
+                int points = (m_CurrentStage == Stage::CONVEYORS) ? 800 : 300;
+                m_HUDText->AddScore(points);
                 m_Renderer.RemoveChild(*it);
                 it = m_Umbrellas.erase(it);
-                SpawnPointVisual(pos, 300);
-                LOG_DEBUG("Mario picked up an umbrella! +300 points.");
+                SpawnPointVisual(pos, points);
+                LOG_DEBUG("Mario picked up an umbrella! +{} points.", points);
             } else {
                 ++it;
             }
@@ -1428,39 +1697,76 @@ void App::Update() {
 
         // 6.3 道具偵測：皮包 (Purse)
         for (auto it = m_Purses.begin(); it != m_Purses.end(); ) {
-            if ((*it)->IfCollides(m_Mario->GetPosition(), m_Mario->GetSize())) {
+            const auto itemPos = (*it)->GetPosition();
+            const auto itemSize = (*it)->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            if (std::abs(itemPos.x - marioPos.x) < (itemSize.x + marioSize.x) / 2.0f &&
+                std::abs(itemPos.y - marioPos.y) < (itemSize.y + marioSize.y) / 2.0f) {
                 glm::vec2 pos = (*it)->GetPosition();
-                m_HUDText->AddScore(500); // 加上 500 分
+                // 第二關為 800 分，其餘 300 分
+                int points = (m_CurrentStage == Stage::CONVEYORS) ? 800 : 300;
+                m_HUDText->AddScore(points);
                 m_Renderer.RemoveChild(*it);
                 it = m_Purses.erase(it);
-                SpawnPointVisual(pos, 500);
-                LOG_DEBUG("Mario picked up a purse! +500 points.");
+                SpawnPointVisual(pos, points);
+                LOG_DEBUG("Mario picked up a purse! +{} points.", points);
+            } else {
+                ++it;
+            }
+        }
+
+        // 6.4 道具偵測：UFO
+        for (auto it = m_Ufos.begin(); it != m_Ufos.end(); ) {
+            const auto itemPos = (*it)->GetPosition();
+            const auto itemSize = (*it)->GetSize();
+            const auto marioPos = m_Mario->GetPosition();
+            const auto marioSize = m_Mario->GetSize();
+            if (std::abs(itemPos.x - marioPos.x) < (itemSize.x + marioSize.x) / 2.0f &&
+                std::abs(itemPos.y - marioPos.y) < (itemSize.y + marioSize.y) / 2.0f) {
+                glm::vec2 pos = (*it)->GetPosition();
+                int points = (m_CurrentStage == Stage::CONVEYORS) ? 800 : 100; // 預設 UFO 分數
+                if (m_CurrentStage == Stage::RIVETS) points = 300; // 原本 Stage 4 的設定
+                m_HUDText->AddScore(points);
+                m_Renderer.RemoveChild(*it);
+                it = m_Ufos.erase(it);
+                SpawnPointVisual(pos, points);
+                LOG_DEBUG("Mario picked up a UFO! +{} points.", points);
             } else {
                 ++it;
             }
         }
 
         // 6.5 碰撞偵測：Mario 與公主 (m_Princess)
-        if (m_Princess && m_Princess->GetVisibility()) {
+        if (m_Princess && m_Princess->GetVisibility()) { // 只有當公主可見時才進行碰撞檢查
             const auto marioPos = m_Mario->GetPosition();
-            const auto marioSize = m_Mario->GetSize();
-            const auto princessPos = m_Princess->GetPosition();
-            const auto princessSize = m_Princess->GetSize();
 
-            const auto marioHalfSize = marioSize / 2.0f;
-            const auto princessHalfSize = princessSize / 2.0f;
-
-            if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
-                std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y) &&
-                marioPos.y >= (halfHeight - 50.0f)) {
+            // 【新增】Stage 2 (L=02) 勝利條件：Mario 站上與 Donkey Kong 同一層
+            if (m_CurrentStage == Stage::CONVEYORS) {
+                const auto dkPos = m_DonkeyKong->GetPosition();
+                // Mario 的中心點 Y 座標達到或超過 Donkey Kong 的中心點 Y 座標 (加上一個小容錯值)
+                if (marioPos.y >= dkPos.y - 24.5f) { // -25.0f 是一個小偏移量，用於考慮潛在的高度差異
+                    m_Mario->Win();
+                }
+            }
+            // 其他關卡的勝利條件：Mario 碰撞公主
+            else {
+                const auto marioSize = m_Mario->GetSize();
+                const auto princessPos = m_Princess->GetPosition();
+                const auto princessSize = m_Princess->GetSize();
+                const auto marioHalfSize = marioSize / 2.0f;
+                const auto princessHalfSize = princessSize / 2.0f;
+                if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
+                    std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y) &&
+                    marioPos.y >= (halfHeight - 50.0f)) { // 原始的公主平台 Y 軸檢查
                 m_Mario->Win();
+                }
             }
         }
 
         // 7. 更新 HUD (包含 Bonus 時間倒數)
         m_HUDText->Update(Util::Time::GetDeltaTimeMs());
     }
-
 END_OF_LOGIC:
     // 即使遊戲結束，Mario 的動畫更新 (例如 Win 動畫) 與 Renderer 仍需持續運行
     m_Mario->Update();

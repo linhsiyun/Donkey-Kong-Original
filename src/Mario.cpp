@@ -260,7 +260,7 @@ void Mario::Jump() {
     if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
 
     // 設定跳躍參數 (後續可以修改這裡的數值)
-    const float totalJumpTime = 45.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
+    const float totalJumpTime = 30.0f; // 跳躍總時間 (Frames) - 從 45.0f 改為 30.0f 使其更快、水平距離更短
     const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的1.25倍
 
     m_JumpTimer += 1.0f;

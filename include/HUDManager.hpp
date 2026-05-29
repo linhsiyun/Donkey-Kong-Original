@@ -88,9 +88,9 @@ public:
     // 提供 API 給其他物件呼叫
     void AddScore(int points);
     void ResetBonus(int amount = 5000);
-    void SetLevel(int level);
     void DecreaseLife();       // 【新增】扣除生命
     int GetLives() const { return mLives; } // 【新增】取得剩餘生命
     int GetBonus() { return bonusTime; }
+    void SetLevel(int level);
 };
 #endif // HUDMANAGER_HPP
