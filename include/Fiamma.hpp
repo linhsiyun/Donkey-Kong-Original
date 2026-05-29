@@ -2,8 +2,9 @@
 #define FIAMMA_HPP
 
 #include "AnimatedCharacter.hpp"
-//#include "Util/Animation.hpp"
+#include "Map.hpp" // 【新增】：引入地圖標頭檔
 #include <cmath>
+#include <memory>
 
 class Fiamma : public AnimatedCharacter {
 public:
@@ -24,9 +25,23 @@ public:
                std::abs(self_pos.y - otherPos.y) < (self_half_size.y + other_half_size.y);
     }
 
+    void SetMap(std::shared_ptr<Map> map) { m_Map = map; }
+
+    enum class State { WALKING, CLIMBING, FALLING };
+    enum class Direction { LEFT, RIGHT };
+    void SetState(State state) { m_State = state; }
+
 private:
-    glm::vec2 m_Velocity = {1.5f, 0.0f}; // 移動速度，可自行調整
-    const float m_BoundX = 300.0f;       // 左右移動的邊界範圍
+    State m_State = State::FALLING;
+    Direction m_Direction = Direction::RIGHT;
+
+    float m_MoveSpeed = 80.0f;  // 水平移動速度
+    float m_ClimbSpeed = 60.0f; // 爬梯速度
+
+    float m_RandomTurnTimer = 0.0f; // 隨機轉向的計時器
+    int m_LastCheckedLadderCol = -1; // 記錄剛剛判定過的梯子
+
+    std::shared_ptr<Map> m_Map;
 };
 
 #endif // FIAMMA_HPP

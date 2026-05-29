@@ -38,8 +38,13 @@ public:
         FALLING_EDGE    // 從平台邊緣垂直落下
     };
 
+    enum class BarrelType {
+        NORMAL,
+        BLUE
+    };
+
     // 步驟一：定義建構子，內部初始化酒桶所有動畫圖層
-    Barrel(State state, Direction dir);
+    Barrel(State state, Direction dir, BarrelType type = BarrelType::NORMAL);
 
     // 步驟二：更新酒桶狀態 (處理位置移動與動畫幀的切換)
     void Update();
@@ -51,6 +56,8 @@ public:
     // 設定與取得酒桶的目前狀態
     void SetState(State state) { m_State = state; }
     [[nodiscard]] State GetState() const { return m_State; }
+
+    [[nodiscard]] BarrelType GetType() const { return m_Type; }
 
     // 設定酒桶的移動速度
     void SetMoveSpeed(float speed) { m_MoveSpeed = speed; }
@@ -64,18 +71,27 @@ public:
     // 讓外部在設定完木桶位置後，重置它的起跳高度基準
     void ResetFallHeight(float currentY) { m_FallStartY = currentY; }
 
+    [[nodiscard]] glm::vec2 GetSize() const {
+        return glm::vec2(16.0f, 16.0f) * glm::abs(m_Transform.scale);
+    }
+
 private:
     std::shared_ptr<Map> m_Map = nullptr;
     float m_FallStartY = 0.0f;
     State m_State = State::ROLLING; // 預設為滾動狀態
     Direction m_Direction;          // 滾動方向
+    BarrelType m_Type;
 
     // 速度設定
     float m_MoveSpeed = 125.0f; // 水平滾動速度 (pixels/sec)
     float m_FallSpeed = 300.0f; // 垂直掉落速度 (pixels/sec)
 
+    float m_VelocityY = 0.0f;         // 垂直速度 (處理彈跳)
+    float m_IgnoreFloorTimer = 0.0f;
+
     // ===== 動畫與計時器區域 =====
     float m_AnimationTimer = 0.0f; // 控制圖片切換的計時器
     int m_CurrentFrame = 0;        // 紀錄目前的圖片索引 (0~3: 滾動, 4~5: 落下)
+    int m_LastCheckedLadderCol = -1; // 記錄上一次判定過的梯子 X 座標索引
 };
 #endif // BARREL_HPP

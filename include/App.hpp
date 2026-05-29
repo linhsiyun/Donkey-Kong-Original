@@ -127,6 +127,7 @@ private:
     bool m_HasActiveRivet = false;             // 【新增】標記目前是否正踩在插銷上
     std::shared_ptr<Character> m_OilBarrel;
     std::shared_ptr<AnimatedCharacter> m_BurningOilBarrel;
+    bool m_IsFirstBarrel = true; // 用來追蹤是否為第一顆木桶
 };
 
 #endif

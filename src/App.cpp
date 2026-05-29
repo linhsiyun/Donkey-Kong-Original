@@ -36,13 +36,19 @@ static std::vector<std::shared_ptr<CementSpawner>> m_CementSpawners;
 void App::SpawnBarrel() {
     LOG_DEBUG("++barrel");
 
-    // 建構 (construct) 一個新的酒桶
-    auto newBarrel = std::make_shared<Barrel>(Barrel::State::ROLLING, Barrel::Direction::RIGHT);
+    // 先宣告指標就好，不要提早初始化，避免浪費資源
+    std::shared_ptr<Barrel> newBarrel;
+
+    if (m_CurrentStage == App::Stage::BARRELS && m_IsFirstBarrel) {
+        // 設定一出生就是 FALLING_EDGE 狀態，並把種類設為 BLUE
+        newBarrel = std::make_shared<Barrel>(Barrel::State::FALLING_EDGE, Barrel::Direction::LEFT, Barrel::BarrelType::BLUE);
+        m_IsFirstBarrel = false; // 標記用完
+    } else {
+        newBarrel = std::make_shared<Barrel>(Barrel::State::ROLLING, Barrel::Direction::RIGHT, Barrel::BarrelType::NORMAL);
+    }
 
     // 讓木桶持有地圖指標，這樣它在 Barrel::Update() 裡才能呼叫 GetTileAtPosition
     newBarrel->SetMap(m_Map);
-    // 1. 必須先設定縮放，後續呼叫 GetSize() 才能取得縮放後的正確尺寸
-    newBarrel->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
     newBarrel->SetZIndex(40);
 
     // 2. 取得大金剛與酒桶的相關資訊
@@ -55,6 +61,13 @@ void App::SpawnBarrel() {
     float spawnX = dkPos.x + (dkSize.x / 2.0f) + 10.0f;
     // Y 軸：大金剛的腳底 (dkPos.y - dkSize.y/2) 加上酒桶的一半高度，使其底部齊平
     float spawnY = (dkPos.y - (dkSize.y / 2.0f)) + (barrelSize.y / 2.0f);
+
+
+    if (newBarrel->GetType() == Barrel::BarrelType::BLUE) {
+        spawnX = dkPos.x - (dkSize.x / 2.0f) + 35.0f; // 根據實際畫面可微調這個 15.0f
+        float spawnY = dkPos.y;
+        newBarrel->SetPosition({spawnX, spawnY});
+    }
 
     newBarrel->SetPosition({spawnX, spawnY});
     // 告知木桶：你現在就在這個高度，不要拿 0.0 跟我算高低差
@@ -83,13 +96,63 @@ void App::UpdateBarrels(MarioState marioState) {
 
         // 2. 檢查是否與 Mario 發生碰撞 (如果木桶還在畫面上的話)
         if (barrel->GetVisibility()) {
+
+            // ========================================================
+            // 【修改重點開始】：處理所有木桶與油桶的碰撞
+            // ========================================================
+            bool hitOilBarrel = false;
+
+            // 狀況 A：檢查是否碰到「未起火的靜態油桶」
+            if (m_OilBarrel && m_OilBarrel->GetVisibility() &&
+                barrel->IfCollides(m_OilBarrel->GetPosition(), m_OilBarrel->GetSize())) {
+                hitOilBarrel = true;
+            }
+            // 狀況 B：檢查是否碰到「已經起火的動態油桶」
+            else if (m_BurningOilBarrel && m_BurningOilBarrel->GetVisibility() &&
+                     barrel->IfCollides(m_BurningOilBarrel->GetPosition(), m_BurningOilBarrel->GetSize())) {
+                hitOilBarrel = true;
+            }
+
+            // 只要碰到任何一種油桶，就執行沒收邏輯
+            if (hitOilBarrel) {
+                barrel->SetVisible(false); // 1. 不管什麼顏色，木桶一律消失！
+
+                // 2. 只有「藍色木桶」且「油桶還沒起火」時，才觸發點火與給分
+                if (barrel->GetType() == Barrel::BarrelType::BLUE && m_OilBarrel && m_OilBarrel->GetVisibility()) {
+
+                    m_OilBarrel->SetVisible(false); // 隱藏靜態油桶
+
+                    if (m_BurningOilBarrel) {
+                        m_BurningOilBarrel->SetVisible(true);
+                        m_BurningOilBarrel->Play(); // 播放起火動畫
+                    }
+                    if (m_HUDText) {
+                        m_HUDText->AddScore(100);
+                    }
+                    if (m_Fireball && !m_Fireball->GetVisibility()) {
+                        m_Fireball->SetVisible(true);
+                        // 將火焰的初始座標設定在油桶的位置
+                        m_Fireball->SetPosition(m_BurningOilBarrel->GetPosition());
+                        // (可選) 根據你的實作，可能需要呼叫 m_Fireball->Reset() 或初始化方向
+
+                        m_Fireball->SetState(Fiamma::State::FALLING);
+                    }
+                }
+
+                // 木桶已經掉進油桶消失了，不用再往下檢查是否砸到瑪利歐
+                continue;
+            }
+            // ========================================================
+            // 【修改重點結束】
+            // ========================================================
+
             // 根據 Mario 狀態調整碰撞框大小
             glm::vec2 marioSize = m_Mario->GetSize();
             if (marioState == MarioState::HAMMERING) {
                 marioSize *= 1.8f; // 拿槌子時攻擊範圍變大
             }
 
-            // AABB 碰撞偵測
+            // AABB 碰撞偵測 (與瑪利歐)
             if (barrel->IfCollides(m_Mario->GetPosition(), marioSize)) {
                 if (marioState == MarioState::HAMMERING) {
                     // Mario 拿著槌子：擊碎木桶
@@ -98,10 +161,15 @@ void App::UpdateBarrels(MarioState marioState) {
                 } else {
                     // Mario 沒拿槌子：死亡
                     m_Mario->Dead();
+
+                    // 【建議補上這個安全機制，防止死後還能二段跳】
+                    goto END_OF_LOGIC;
                 }
             }
         }
     }
+END_OF_LOGIC:
+    return; // 提早結束這回合的木桶更新
 }
 
 /**
@@ -267,7 +335,7 @@ void App::LoadLevel(int level) {
 
     // // 重置 Mario 以及其它遊戲角色的狀態與可見性 (移至開頭以統一管理)
     // m_Mario->SetState(MarioState::IDLE);
-#if 1 //sdbg
+#if 0 //sdbg
     m_Fireball->SetVisible(true);
 #else
     m_Fireball->SetVisible(false);
@@ -285,6 +353,11 @@ void App::LoadLevel(int level) {
         m_Renderer.RemoveChild(m_OilBarrel);
         m_OilBarrel = nullptr;
     }
+    if (m_BurningOilBarrel) {
+        m_BurningOilBarrel->SetVisible(false);
+        m_BurningOilBarrel->Stop();
+    }
+
 
     // --- 2. 載入地圖資源 ---
     // 必須先載入地圖，後續所有基於地圖縮放（Scale）的計算才會正確
@@ -305,24 +378,21 @@ void App::LoadLevel(int level) {
 
     m_Map->LoadNewMap(mapImg, mapTxt);
     m_DonkeyKong->SetMap(m_Map); // 讓 DK 持有地圖指標
-
-    halfWidth = m_Map->GetMapWidth() / 2.0f;
-    halfHeight = m_Map->GetMapHeight() / 2.0f;
-
     // --- 3. 定義邏輯座標與行為 (基於 720x720 系統) ---
     // 以下數值皆為 720x720 邏輯空間中的精準座標 (X, Y)
     glm::vec2 dkLogicPos, marioLogicPos;
     float dkMinLogicX = 0.0f, dkMaxLogicX = 0.0f;
     DonkeyKong::Behavior dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
     if (m_CurrentStage == App::Stage::BARRELS) {
-        dkLogicPos = {120.0f, 165.0f};      // DK 在左上方平台
+        m_IsFirstBarrel = true;
+        dkLogicPos = {140.0f, 165.0f};      // DK 在左上方平台
         marioLogicPos = {100.0f, 665.0f};    // Mario 在左下方起點
         dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
         dkMinLogicX = 120.0f; dkMaxLogicX = 120.0f;
 
         if (m_StaticBarrels) {
             m_StaticBarrels->SetVisible(true);
-            m_StaticBarrels->SetPosition(CoordinateManager::LogicToEngine({40.0f, 125.0f}));
+            m_StaticBarrels->SetPosition(CoordinateManager::LogicToEngine({40.0f, 120.0f}));
         }
         // 第一關道具座標
         m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
@@ -337,7 +407,7 @@ void App::LoadLevel(int level) {
         m_OilBarrel->SetScale({m_Mario->marioScale, m_Mario->marioScale});
 
         // 4. 設定邏輯位置 (30, 690)，並轉換為引擎座標
-        m_OilBarrel->SetPosition(CoordinateManager::LogicToEngine({60.0f, 672.0f}));
+        m_OilBarrel->SetPosition(CoordinateManager::LogicToEngine({60.0f, 670.0f}));
 
         // 5. 設定可見度
         m_OilBarrel->SetVisible(true);
@@ -346,7 +416,7 @@ void App::LoadLevel(int level) {
         m_Renderer.AddChild(m_OilBarrel);
 
     } else if (m_CurrentStage == App::Stage::CONVEYORS) {
-        dkLogicPos = {110.0f, 155.0f};
+        dkLogicPos = {110.0f, 180.0f};
         marioLogicPos = {50.0f, 665.0f};
         dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
         dkMinLogicX = 100.0f; dkMaxLogicX = 620.0f; // 巡邏範圍
@@ -414,7 +484,7 @@ void App::LoadLevel(int level) {
         m_Renderer.AddChild(leftLadder);
         m_Renderer.AddChild(rightLadder);
     } else if (m_CurrentStage == App::Stage::ELEVATORS) {
-        dkLogicPos = {120.0f, 155.0f};
+        dkLogicPos = {120.0f, 180.0f};
         marioLogicPos = {50.0f, 665.0f};
         dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
         dkMinLogicX = 120.0f; dkMaxLogicX = 120.0f; // 原地搥胸
@@ -422,7 +492,7 @@ void App::LoadLevel(int level) {
         // 第三關道具座標
         m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
     } else if (m_CurrentStage == App::Stage::RIVETS) {
-        dkLogicPos = {360.0f, 110.0f};      // DK 在頂端中心
+        dkLogicPos = {360.0f, 180.0f};      // DK 在頂端中心
         marioLogicPos = {50.0f, 665.0f};
         dkBehavior = DonkeyKong::Behavior::MOVING_CHEST_BEATING;
         dkMinLogicX = 360.0f; dkMaxLogicX = 360.0f;
@@ -576,6 +646,7 @@ void App::Start() {
 
     // 建構火球物件
     m_Fireball = std::make_shared<Fiamma>();
+    m_Fireball->SetMap(m_Map);
     m_Renderer.AddChild(m_Fireball);
 
     // 建構地面上的槌子道具並放在右側
@@ -593,6 +664,23 @@ void App::Start() {
     m_StaticBarrels->SetScale({m_Mario->marioScale / 1.0f, m_Mario->marioScale / 1.0f});
     m_StaticBarrels->SetZIndex(40); // 確保在角色層級之後
     m_Renderer.AddChild(m_StaticBarrels);
+
+    m_OilBarrel = std::make_shared<Character>(RESOURCE_DIR"/Images/OilBarrel.png"); // 請確認你的檔名
+    m_OilBarrel->SetScale({m_Mario->marioScale, m_Mario->marioScale});
+    m_OilBarrel->SetZIndex(40);
+    m_Renderer.AddChild(m_OilBarrel);
+
+    m_BurningOilBarrel = std::make_shared<AnimatedCharacter>(std::vector<std::string>{
+        RESOURCE_DIR"/Images/OilBarrel1.png",
+        RESOURCE_DIR"/Images/OilBarrel2.png"
+    });
+    m_BurningOilBarrel->SetScale({m_Mario->marioScale, m_Mario->marioScale});
+    m_BurningOilBarrel->SetZIndex(41); // 稍微高於靜態油桶一點點或一樣即可
+    m_BurningOilBarrel->SetPosition(CoordinateManager::LogicToEngine({60.0f, 658.0f}));
+    m_BurningOilBarrel->SetVisible(false); // 一開始先隱藏，等藍色木桶撞到才顯示
+    m_BurningOilBarrel->SetLooping(true);
+    m_BurningOilBarrel->SetInterval(150);
+    m_Renderer.AddChild(m_BurningOilBarrel);
 
     // 建構text物件
     m_HUDText = std::make_shared<HUDManager>();
@@ -1032,13 +1120,13 @@ void App::Update() {
         // 在處理 Mario 的移動邏輯之前，先更新 Donkey Kong 的邊界資訊給 Mario
         m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
 
-        // 3. 處理 Mario 輸入  // TODO: clime_idle 也不能 jump...
-        if ((m_Mario->GetState() != MarioState::JUMPING)
-            && (m_Mario->GetState() != MarioState::CLIMBING)
-            && (m_Mario->GetState() != MarioState::HAMMERING) // 拿槌子時禁止跳躍
+        // 3. 處理 Mario 輸入
+        MarioState currentState = m_Mario->GetState();
+        if ((currentState == MarioState::IDLE || currentState == MarioState::WALKING)
             && Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
+
             m_Mario->JumpStart();
-        }
+            }
 
         // 1. 先執行移動邏輯 (讓座標更新到這一幀的目標位置)
         if (m_Mario->IsJumping()) {
