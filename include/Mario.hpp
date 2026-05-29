@@ -87,8 +87,6 @@ public:
     bool IsDeathAnimationDone() const; // 【新增】判斷死亡動畫是否播放完畢
     float GetJumpTimer() const { return m_JumpTimer; } // 新增：取得跳躍計時器
 
-
-
 private:
     // 將所有動作圖層封裝在這裡：
     std::shared_ptr<Character>         m_Idle;

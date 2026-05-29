@@ -119,7 +119,7 @@ void Fiamma::Update() {
                 footTile = m_Map->GetLevelData().GetTile(footCol, footRow);
             }
 
-            auto [centerCol, centerRow] = m_Map->GetTileIndexAtPosition(currentPos.x, currentPos.y);
+            // unused, auto [centerCol, centerRow] = m_Map->GetTileIndexAtPosition(currentPos.x, currentPos.y);
             TileType centerTile = m_Map->GetTileAtPosition(currentPos.x, currentPos.y);
 
             bool isPlatform = false;
