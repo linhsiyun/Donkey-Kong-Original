@@ -3,7 +3,6 @@
 #include <sstream>
 #include "Character.hpp"
 #include "config.hpp"
-#include "Setting.hpp"
 #include "CoordinateManager.hpp"
 
 static std::string FormatInt(int score, int width) {

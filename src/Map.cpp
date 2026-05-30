@@ -3,7 +3,6 @@
 #include "Util/Image.hpp"
 #include "Util/Logger.hpp"
 #include "config.hpp"
-#include "Setting.hpp"
 #include <cmath>
 #include <algorithm>
 
