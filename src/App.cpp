@@ -192,12 +192,13 @@ void App::UpdateCementPans(MarioState marioState) {
 
         glm::vec2 pos = pan->GetPosition();
         TileType type = pan->GetTargetBelt();
-        float midLayerEngineY = CoordinateManager::LogicToEngine({0.0f, 300.0f}).y; // 上層/中層軌道引擎高度
+        // 取得中層傳送帶的標準高度 (Logic 300 -> Engine 60)
+        static const float midLayerEngineY = CoordinateManager::LogicToEngine({0.0f, 300.0f}).y;
         float fuelCanEngineY = 20.0f; // 這是畫面中央油桶的實際引擎 Y 座標
 
-        // 1. 只有編號 6, 7 (CONVEYOR2, 3) 會執行下墜邏輯。編號 5 (CONVEYOR1) 永遠不進入下墜狀態。
+        // 判定水泥塊類型
         bool canFall = (type == TileType::CONVEYOR2 || type == TileType::CONVEYOR3);
-        bool isFalling = canFall && (pos.y < midLayerEngineY - 1.0f && pos.y > fuelCanEngineY - 10.0f);
+        bool isFalling = canFall && (pos.y < midLayerEngineY - 2.0f && pos.y > fuelCanEngineY - 10.0f);
 
         if (isFalling) {
             float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
@@ -262,7 +263,7 @@ void App::UpdateCementPans(MarioState marioState) {
             }
 
             // 3. 向下移動足夠距離，確保下一幀必定進入 isFalling 判定區間
-            pos.y -= 5.0f;
+            pos.y -= 8.0f;
             pan->SetPosition(pos);
 
             // 4. 攔截本次移除動作，讓它能繼續存在於列表中進行下墜動畫
@@ -270,8 +271,8 @@ void App::UpdateCementPans(MarioState marioState) {
             continue;
         }
 
-        // 允許水泥塊移動到 halfWidth 之外一段距離（如 50px），確保圖片完全消失後再移除
-        if (!isFalling && (pan->ShouldRemove() || std::abs(pos.x) > halfWidth + 50.0f)) {
+        // 邊界檢查：只有不在下墜狀態，且（確定移除或超出畫面邊界）才銷毀
+        if (!isFalling && (pan->ShouldRemove() || std::abs(pos.x) > halfWidth + 20.0f)) {
             m_Renderer.RemoveChild(pan);
             it = m_CementPans.erase(it);
         } else {
@@ -334,6 +335,10 @@ void App::LoadLevel(int level) {
     int stageNum = level % 4;
     if (stageNum == 0) stageNum = 4;
     m_CurrentStage = static_cast<App::Stage>(stageNum);
+
+    // 初始化邏輯半寬高，確保水泥塊與物件不會因為座標判定而消失
+    halfWidth = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
+    halfHeight = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
 
     // 根據關卡動態調整跳躍性能：僅在電梯關卡使用 30.0f，其餘關卡維持原版 45.0f
     g_MarioTotalJumpTime = (m_CurrentStage == App::Stage::ELEVATORS) ? 30.0f : 45.0f;
@@ -521,11 +526,11 @@ void App::LoadLevel(int level) {
          // 設定左右遮罩，讓水泥塊能漸漸出現/消失
         if (m_LeftMask) {
             m_LeftMask->SetVisible(true);
-            m_LeftMask->SetPosition(CoordinateManager::LogicToEngine({-50.0f, 460.0f}));
+            m_LeftMask->SetPosition(CoordinateManager::LogicToEngine({-55.0f, 460.0f}));
         }
         if (m_RightMask) {
             m_RightMask->SetVisible(true);
-            m_RightMask->SetPosition(CoordinateManager::LogicToEngine({770.0f, 460.0f}));
+            m_RightMask->SetPosition(CoordinateManager::LogicToEngine({775.0f, 460.0f}));
         }
 
         // 初始化傳送帶邏輯系統
@@ -578,7 +583,7 @@ void App::LoadLevel(int level) {
         m_PivotLeft->SetZIndex(40);
         //m_PivotLeft->SetPosition({-213.0f * mapScale.x, spawnerY2 - 236});
         //m_PivotLeft->SetPosition({-213.0f * mapScale.x, spawnerY2});
-        m_PivotLeft->SetPosition(CoordinateManager::LogicToEngine({logicX1_left, spawnerY1}));
+        m_PivotLeft->SetPosition(CoordinateManager::LogicToEngine({logicX1_left, spawnerY1 + 20}));
         m_PivotLeft->SetInterval(500);
         m_PivotLeft->SetLooping(true);
         m_PivotLeft->Play();
@@ -592,7 +597,7 @@ void App::LoadLevel(int level) {
         });
         m_PivotRight->SetScale({-mapScale.x * 2.0f, mapScale.y * 2.0f}); // 水平翻轉
         m_PivotRight->SetZIndex(40);
-        m_PivotRight->SetPosition(CoordinateManager::LogicToEngine({logicX1_right, spawnerY1}));
+        m_PivotRight->SetPosition(CoordinateManager::LogicToEngine({logicX1_right, spawnerY1 + 20}));
         m_PivotRight->SetInterval(500);
         m_PivotRight->SetLooping(true);
         m_PivotRight->Play();
@@ -606,7 +611,7 @@ void App::LoadLevel(int level) {
         });
         m_PivotTopLeft->SetScale(mapScale * 2.0f);
         m_PivotTopLeft->SetZIndex(40);
-        m_PivotTopLeft->SetPosition(CoordinateManager::LogicToEngine({logicX1_left, spawnerY2 - 100}));
+        m_PivotTopLeft->SetPosition(CoordinateManager::LogicToEngine({logicX1_left, spawnerY2 - 107}));
         m_PivotTopLeft->SetInterval(500);
         m_PivotTopLeft->SetLooping(true);
         m_PivotTopLeft->Play();
@@ -620,7 +625,7 @@ void App::LoadLevel(int level) {
         });
         m_PivotTopRight->SetScale({-mapScale.x * 2.0f, mapScale.y * 2.0f}); // 水平翻轉
         m_PivotTopRight->SetZIndex(40);
-        m_PivotTopRight->SetPosition(CoordinateManager::LogicToEngine({logicX1_right, spawnerY2 - 100}));
+        m_PivotTopRight->SetPosition(CoordinateManager::LogicToEngine({logicX1_right, spawnerY2 - 107}));
         m_PivotTopRight->SetInterval(500);
         m_PivotTopRight->SetLooping(true);
         m_PivotTopRight->Play();
@@ -650,7 +655,7 @@ void App::LoadLevel(int level) {
         m_PivotMidRight->SetScale(mapScale * 2.0f);
         m_PivotMidRight->SetZIndex(40);
         //m_PivotMidRight->SetPosition({30.0f * mapScale.x, 33.0f});
-        m_PivotMidRight->SetPosition(CoordinateManager::LogicToEngine({400, spawnerY2 }));
+        m_PivotMidRight->SetPosition(CoordinateManager::LogicToEngine({400, spawnerY2 + 22}));
         m_PivotMidRight->SetInterval(500);
         m_PivotMidRight->SetLooping(true);
         m_PivotMidRight->Play();
@@ -679,7 +684,7 @@ void App::LoadLevel(int level) {
         auto p2 = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
         p2->SetScale(mapScale * 2.0f);
         p2->SetZIndex(40);
-        p2->SetPosition(CoordinateManager::LogicToEngine({420, spawnerY1 + 120})); //({50.0f, -halfHeight + 35.0f});
+        p2->SetPosition(CoordinateManager::LogicToEngine({410, spawnerY1 + 120})); //({50.0f, -halfHeight + 35.0f});
         m_Purses.push_back(p2);
         m_Renderer.AddChild(p2);
 
@@ -687,7 +692,7 @@ void App::LoadLevel(int level) {
         auto u2 = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
         u2->SetScale(mapScale * 2.0f);
         u2->SetZIndex(40);
-        u2->SetPosition(CoordinateManager::LogicToEngine({650, spawnerY2 + 120}));     //({250.0f, spawnerY2 - 100.0f});
+        u2->SetPosition(CoordinateManager::LogicToEngine({660, spawnerY2 + 115}));     //({250.0f, spawnerY2 - 100.0f});
         m_Umbrellas.push_back(u2);
         m_Renderer.AddChild(u2);
 
@@ -695,7 +700,7 @@ void App::LoadLevel(int level) {
         auto ufo2 = std::make_shared<Character>(RESOURCE_DIR"/Images/ufo.png");
         ufo2->SetScale(mapScale * 2.0f);
         ufo2->SetZIndex(40);
-        ufo2->SetPosition(CoordinateManager::LogicToEngine({240, spawnerY2 + 120}));   //({-110.0f, spawnerY2 - 100.0f});
+        ufo2->SetPosition(CoordinateManager::LogicToEngine({230, spawnerY2 + 115}));   //({-110.0f, spawnerY2 - 100.0f});
         m_Ufos.push_back(ufo2);
         m_Renderer.AddChild(ufo2);
 
@@ -1030,7 +1035,7 @@ void App::Start() {
     //     m_Princess->SetPivot(m_PrincessRefSize / 2.0f);
     // }
 
-    // 初始化左右遮罩 (使用與 BlackCover 相同的黑色圖片)
+    // 初始化 Conveyor1,2,3 左右遮罩 (使用與 BlackCover 相同的黑色圖片)
     m_LeftMask = std::make_shared<Character>(RESOURCE_DIR"/Images/black2.png");
     m_LeftMask->SetZIndex(60); // ZIndex 必須高於 CementPan (45) 與 Mario (50)
     m_LeftMask->SetVisible(false);
