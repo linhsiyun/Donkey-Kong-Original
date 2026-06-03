@@ -151,6 +151,9 @@ void App::UpdateBarrels(MarioState marioState) {
             if (marioState == MarioState::HAMMERING) {
                 marioSize *= 1.8f; // 拿槌子時攻擊範圍變大
             }
+            else {
+                marioSize *= 0.5f; // 【寬容判定】：沒拿槌子閃躲時，將受傷範圍縮小至 50%
+            }
 
             // AABB 碰撞偵測 (與瑪利歐)
             if (barrel->IfCollides(m_Mario->GetPosition(), marioSize)) {
@@ -184,6 +187,7 @@ void App::UpdateCementPans(MarioState marioState) {
         // 碰撞偵測 (Mario)
         glm::vec2 marioSize = m_Mario->GetSize();
         if (marioState == MarioState::HAMMERING) marioSize *= 1.8f;
+        else {marioSize *= 0.5f;} // 【寬容判定】：縮小受傷範圍至 50%
 
         if (pan->IfCollides(m_Mario->GetPosition(), marioSize)) {
             if (marioState == MarioState::HAMMERING) {
@@ -1456,6 +1460,7 @@ void App::Update() {
         if (m_Fireball->GetVisibility()) {
             glm::vec2 marioSize = m_Mario->GetSize();
             if (m_Mario->GetState() == MarioState::HAMMERING) marioSize *= 1.8f;
+            else {marioSize *= 0.5f;}// 【寬容判定】：縮小受傷範圍至 50%
 
            if (m_Fireball->IfCollides(m_Mario->GetPosition(), marioSize)) {
                 if (m_Mario->GetState() == MarioState::HAMMERING) {
