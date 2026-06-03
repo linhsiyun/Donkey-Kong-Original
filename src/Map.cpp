@@ -57,7 +57,7 @@ void Map::AutoScale() {
 void Map::UpdateDimensions() {
     if (m_Drawable == nullptr) return;
 
-    float baseWidth = CoordinateManager::MAP_LOGIC_SIZE * (static_cast<float>(m_LevelData.GetWidth()) / m_LevelData.GetHeight()); // 假設視窗比例
+    // unused, float baseWidth = CoordinateManager::MAP_LOGIC_SIZE * (static_cast<float>(m_LevelData.GetWidth()) / m_LevelData.GetHeight()); // 假設視窗比例
 
     glm::vec2 imageSize = m_Drawable->GetSize();
     glm::vec2 currentScale = m_Transform.scale;

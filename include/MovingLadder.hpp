@@ -70,8 +70,6 @@ public:
         SetScale(finalScale);
     }
 
-
-
     // 1. 線性插值 (Lerp)：公式 pos.y = startY + (endY - startY) * t 確保了梯子會隨著時間均勻移動。std::min(..., 1.0f) 則是為了防止計時器稍微超過總時間時導致座標衝過頭。
     // 2. 狀態同步：在 EXTENDED 與 RETRACTED 靜止狀態下，我們強制設定 pos.y 為 y1 或 y2，消除移動結束後可能存在的浮點數微小誤差。
     void Update(float dtMs) {

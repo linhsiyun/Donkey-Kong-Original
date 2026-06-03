@@ -75,7 +75,6 @@ private:
     std::shared_ptr<Util::GameObject> barrelCountObject;
 
     float bonusTimer = 0.0f; // 用來計時 1 秒扣一次分數
-    int m_Level = 1;
 
 public:
     HUDManager();

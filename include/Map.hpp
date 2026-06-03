@@ -10,6 +10,7 @@
 
 class Map : public Util::GameObject {
 public:
+    // 建構子同時接收「圖片路徑」與「TXT路徑」
     Map(const std::string& imagePath, const std::string& txtPath);
 
     // --- 核心邏輯資料 ---

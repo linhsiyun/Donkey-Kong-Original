@@ -526,7 +526,7 @@ void App::LoadLevel(int level) {
     m_DonkeyKong->SetMoveBounds(engineMinX, engineMaxX);
 
     // --- 5. 處理各關卡特殊物件 (電梯、插銷) ---
-    glm::vec2 mapScale = m_Map->GetScale();
+    // unused, glm::vec2 mapScale = m_Map->GetScale();
 
     if (m_CurrentStage == App::Stage::ELEVATORS) {
         // 1. 定義電梯的上下極限邊界 (邏輯 Y 座標)
