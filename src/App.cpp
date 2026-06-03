@@ -418,20 +418,19 @@ void App::LoadLevel(int level) {
     }
 
     // 重置 Stage 4 特有的邏輯標記 (移至開頭以確保不論從哪一關離開，狀態都乾淨)
-    m_Mario->SetState(MarioState::IDLE);
     m_ActiveRivetPos = {0.0f, 0.0f};
     m_HasActiveRivet = false;
     m_RivetCount = 0;
     m_InTransition = false;
     m_DKFallTimer = 0.0f;
+    m_FireballTimerMs = 0.0f;
+    m_FireballJumping = false;
 
     // // 重置 Mario 以及其它遊戲角色的狀態與可見性 (移至開頭以統一管理)
-    // m_Mario->SetState(MarioState::IDLE);
-#if 0 //sdbg
-    m_Fireball->SetVisible(true);
-#else
+    m_Mario->SetState(MarioState::IDLE);
     m_Fireball->SetVisible(false);
-#endif
+    m_Fireball2->SetVisible(false);
+
     if (m_HammerItem) m_HammerItem->SetVisible(true);
     if (m_HammerItem2) m_HammerItem2->SetVisible(true);
 
@@ -478,7 +477,7 @@ void App::LoadLevel(int level) {
     glm::vec2 dkLogicPos, marioLogicPos;
     float dkMinLogicX = 0.0f, dkMaxLogicX = 0.0f;
     DonkeyKong::Behavior dkBehavior = DonkeyKong::Behavior::STATIONARY_LOOKING;
-    
+
     if (m_CurrentStage == App::Stage::BARRELS) {
         m_IsFirstBarrel = true;
         dkLogicPos = {140.0f, 165.0f};      // DK 在左上方平台
@@ -491,7 +490,7 @@ void App::LoadLevel(int level) {
             m_StaticBarrels->SetPosition(CoordinateManager::LogicToEngine({40.0f, 120.0f}));
         }
         // 第一關道具座標
-        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
+        // m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
         if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({510.0f, 535.0f}));
         if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({80.0f, 220.0f}));
 
@@ -680,7 +679,7 @@ void App::LoadLevel(int level) {
         auto p2 = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
         p2->SetScale(mapScale * 2.0f);
         p2->SetZIndex(40);
-        p2->SetPosition(CoordinateManager::LogicToEngine({410, spawnerY1 + 120})); 
+        p2->SetPosition(CoordinateManager::LogicToEngine({410, spawnerY1 + 120}));
         m_Purses.push_back(p2);
         m_Renderer.AddChild(p2);
 
@@ -688,7 +687,7 @@ void App::LoadLevel(int level) {
         auto u2 = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
         u2->SetScale(mapScale * 2.0f);
         u2->SetZIndex(40);
-        u2->SetPosition(CoordinateManager::LogicToEngine({660, spawnerY2 + 115}));     
+        u2->SetPosition(CoordinateManager::LogicToEngine({660, spawnerY2 + 115}));
         m_Umbrellas.push_back(u2);
         m_Renderer.AddChild(u2);
 
@@ -705,7 +704,16 @@ void App::LoadLevel(int level) {
         m_FuelCan->SetVisible(true);
         m_FuelCan->SetScale(m_Map->GetScale() * 2.0f);
 
-        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, spawnerY2 }));
+        //m_Fireball->SetPosition(m_FuelCan->GetPosition() - 200.0f);
+        m_Fireball->SetVisible(false); // 初始先隱藏
+        m_FireballTimerMs = 1000.0f; // 等待 1 秒後出現
+        m_FireballJumping = false;
+
+        //m_Fireball2->SetPosition(m_FuelCan->GetPosition() - 200.0f);
+        m_Fireball2->SetVisible(false);
+        m_FireballTimerMs2 = 2000.0f; // 等待 2 秒後出現 (比第一個多一秒)
+        m_FireballJumping2 = false;
+
         if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({360.0f, 480.0f})); //({0.0f, -120.5f});
         if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({50.0f, 350.0f}));
 
@@ -797,8 +805,14 @@ void App::LoadLevel(int level) {
         createStop(rightElX, engTopY - 4.0f * mapScale.y, false); // 右上
         createStop(rightElX, engBotY - 7.0f * mapScale.y, true);  // 右下
 
-        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
+        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({200.0f, 300.0f}));;
+        m_Fireball->SetVisible(true);
+        m_Fireball->SetState(Fiamma::State::FALLING); 
 
+        m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({600.0f, 300.0f}));;
+        m_Fireball2->SetVisible(true);
+        m_Fireball2->SetState(Fiamma::State::FALLING); 
+       
     } else if (m_CurrentStage == App::Stage::RIVETS) {
         dkLogicPos = {360.0f, 180.0f};      // DK 在頂端中心
         marioLogicPos = {50.0f, 665.0f};
@@ -813,7 +827,7 @@ void App::LoadLevel(int level) {
         auto p = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
         p->SetScale(mapScale * 2.0f);
         p->SetZIndex(40);
-        p->SetPosition(CoordinateManager::LogicToEngine({410.0f, 680.0f})); 
+        p->SetPosition(CoordinateManager::LogicToEngine({410.0f, 680.0f}));
         m_Purses.push_back(p);
         m_Renderer.AddChild(p);
 
@@ -821,7 +835,7 @@ void App::LoadLevel(int level) {
         auto u = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
         u->SetScale(mapScale * 2.0f);
         u->SetZIndex(40);
-        u->SetPosition(CoordinateManager::LogicToEngine({112.0f, 155.0f})); 
+        u->SetPosition(CoordinateManager::LogicToEngine({112.0f, 155.0f}));
         m_Umbrellas.push_back(u);
         m_Renderer.AddChild(u);
 
@@ -829,14 +843,20 @@ void App::LoadLevel(int level) {
         auto ufo = std::make_shared<Character>(RESOURCE_DIR"/Images/ufo.png");
         ufo->SetScale(mapScale * 2.0f);
         ufo->SetZIndex(40);
-        ufo->SetPosition(CoordinateManager::LogicToEngine({653.0f, 540.0f}));   
+        ufo->SetPosition(CoordinateManager::LogicToEngine({653.0f, 540.0f}));
         m_Ufos.push_back(ufo);
         m_Renderer.AddChild(ufo);
 
-        if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({50.0f, 350.0f}));  
+        if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({50.0f, 350.0f}));
         if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({360.0f, 220.0f}));
 
-        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
+        m_Fireball->SetPosition(CoordinateManager::LogicToEngine({650.0f, 650.0f}));;
+        m_Fireball->SetVisible(true);
+        m_Fireball->SetState(Fiamma::State::FALLING); 
+
+        m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({250.0f, 250.0f}));;
+        m_Fireball2->SetVisible(true);
+        m_Fireball2->SetState(Fiamma::State::FALLING); 
 
         const auto& data = m_Map->GetLevelData();
         for (int y = 0; y < data.GetHeight(); ++y) {
@@ -878,7 +898,7 @@ void App::LoadLevel(int level) {
 
 
     if (m_CurrentStage == App::Stage::ELEVATORS) {
-#if 0        
+#if 0
         // 1. 定義電梯的上下極限邊界 (邏輯 Y 座標)
         float logicTopY = 200.0f;
         float logicBotY = 680.0f;
@@ -959,7 +979,7 @@ void App::LoadLevel(int level) {
         createStop(rightElX, engTopY - 4.0f * mapScale.y, false); // 右上
         createStop(rightElX, engBotY - 7.0f * mapScale.y, true);  // 右下
 #endif
-    } 
+    }
 
     m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
 }
@@ -989,6 +1009,11 @@ void App::Start() {
     m_Fireball = std::make_shared<Fiamma>();
     m_Fireball->SetMap(m_Map);
     m_Renderer.AddChild(m_Fireball);
+
+    // 建構火球2物件
+    m_Fireball2 = std::make_shared<Fiamma>();
+    m_Fireball2->SetMap(m_Map);
+    m_Renderer.AddChild(m_Fireball2);
 
     // 建構地面上的槌子道具並放在右側
     m_HammerItem = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
@@ -1313,7 +1338,7 @@ void App::Update() {
             // 修正：黑幕只遮蓋中間結構，且層級設為 10 確保大金剛 (50) 在前方下墜
             m_BlackCover->SetVisible(true);
             // 修正縮放：改用地圖縮放倍率為基準，確保遮罩寬度維持在中間梯子範圍（邏輯寬度約 340 單位）
-            m_BlackCover->SetScale(m_Map->GetScale() * glm::vec2(1.5f, 1.5f)); 
+            m_BlackCover->SetScale(m_Map->GetScale() * glm::vec2(1.5f, 1.5f));
             m_BlackCover->SetZIndex(10);
             m_BlackCover->SetPosition({0.0f, -45.0f}); // 僅遮住中間結構，保留兩側地圖
 
@@ -1806,26 +1831,99 @@ void App::Update() {
             }
         }
 
-        // 4. 更新火球移動邏輯 (如果火球可見)
+        // 4. 更新火球移動邏輯
+        if (m_CurrentStage == App::Stage::CONVEYORS) {
+            if (!m_Fireball->GetVisibility() && m_FireballTimerMs > 0.0f) {
+                m_FireballTimerMs -= static_cast<float>(Util::Time::GetDeltaTimeMs());
+                if (m_FireballTimerMs <= 0.0f) {
+                    m_Fireball->SetVisible(true);
+                    // 設定火球從油桶的位置彈出
+                    glm::vec2 fuelPos = m_FuelCan->GetPosition();
+                    m_Fireball->SetPosition({fuelPos.x, fuelPos.y + 20.0f});
+                    m_Fireball->SetState(Fiamma::State::FALLING); //
+                    m_FireballJumping = true;      // 啟用跳躍狀態
+                    m_FireballVelocityY = 250.0f;  // 增加初速度以抵銷 Fiamma 內部的下墜拉力
+                    m_FireballVelocityX = (std::rand() % 2 == 0 ? 50.0f : -50.0f); // 隨機向左或向右跳
+                }
+            }
+
+            if (!m_Fireball2->GetVisibility() && m_FireballTimerMs2 > 0.0f) {
+                m_FireballTimerMs2 -= static_cast<float>(Util::Time::GetDeltaTimeMs());
+                if (m_FireballTimerMs2 <= 0.0f) {
+                    m_Fireball2->SetVisible(true);
+                    // 設定火球從油桶的位置彈出
+                    glm::vec2 fuelPos = m_FuelCan->GetPosition();
+                    m_Fireball2->SetPosition({fuelPos.x, fuelPos.y + 20.0f});
+                    m_Fireball2->SetState(Fiamma::State::FALLING);
+                    m_FireballJumping2 = true;      // 啟用跳躍狀態
+                    m_FireballVelocityY2 = 250.0f;  // 給予向上的初速度
+                    m_FireballVelocityX2 = (std::rand() % 2 == 0 ? 50.0f : -50.0f); // 隨機向左或向右跳
+                }
+            }
+        }
+
         if (m_Fireball->GetVisibility()) {
+            if (m_FireballJumping) {
+                // 自訂火球拋物線跳躍邏輯
+                float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
+                glm::vec2 fPos = m_Fireball->GetPosition();
+
+                fPos.y += m_FireballVelocityY * dtSec;    // 根據速度更新 Y 座標
+                m_FireballVelocityY -= 300.0f * dtSec;    // 模擬重力往下掉
+
+                // 跳躍時給予些微隨機水平向右或向左偏移來模仿彈出
+                fPos.x += m_FireballVelocityX * dtSec;
+
+                // 將計算後的座標設定回去，否則 math 運算只停留在區域變數中
+                m_Fireball->SetPosition(fPos);
+
+                // 落地檢查：當 Y 速度轉負（下墜中）且腳下碰到地板時，結束自定義跳躍邏輯
+                float footY = fPos.y - (m_Fireball->GetSize().y / 2.0f);
+                if (m_FireballVelocityY < 0 && m_Map->GetTileAtPosition(fPos.x, footY - 2.0f) == TileType::FLOOR) {
+                    m_FireballJumping = false;
+                }
+            }
+            // 不論是否正在跳躍，都必須更新 Fiamma 以驅動動畫與落地後的走路邏輯
             m_Fireball->Update();
         }
 
-        // 5. 碰撞偵測：Mario 與火球
-        if (m_Fireball->GetVisibility()) {
-            glm::vec2 marioSize = m_Mario->GetSize();
-            if (m_Mario->GetState() == MarioState::HAMMERING) marioSize *= 1.8f;
+        if (m_Fireball2->GetVisibility()) {
+            if (m_FireballJumping2) {
+                float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
+                glm::vec2 fPos = m_Fireball2->GetPosition();
 
-            const auto firePos = m_Fireball->GetPosition();
-            const auto fireSize = m_Fireball->GetSize();
-            const auto marioPos = m_Mario->GetPosition();
-            if (std::abs(firePos.x - marioPos.x) < (fireSize.x + marioSize.x) / 2.0f &&
-                std::abs(firePos.y - marioPos.y) < (fireSize.y + marioSize.y) / 2.0f) {
-                if (m_Mario->GetState() == MarioState::HAMMERING) {
-                    TriggerSmash(m_Fireball->GetPosition(), 800);
-                    m_Fireball->SetVisible(false); // 擊碎火球
-                } else {
-                    m_Mario->Dead();
+                fPos.y += m_FireballVelocityY2 * dtSec;
+                m_FireballVelocityY2 -= 300.0f * dtSec;
+                fPos.x += m_FireballVelocityX2 * dtSec;
+
+                m_Fireball2->SetPosition(fPos);
+
+                float footY = fPos.y - (m_Fireball2->GetSize().y / 2.0f);
+                if (m_FireballVelocityY2 < 0 && m_Map->GetTileAtPosition(fPos.x, footY - 2.0f) == TileType::FLOOR) {
+                    m_FireballJumping2 = false;
+                }
+            }
+            m_Fireball2->Update();
+        }
+
+        // 5. 碰撞偵測：Mario 與火球
+        auto fireballs = {m_Fireball, m_Fireball2};
+        for (auto& fireball : fireballs) {
+            if (fireball->GetVisibility()) {
+                glm::vec2 marioSize = m_Mario->GetSize();
+                if (m_Mario->GetState() == MarioState::HAMMERING) marioSize *= 1.8f;
+
+                const auto firePos = fireball->GetPosition();
+                const auto fireSize = fireball->GetSize();
+                const auto marioPos = m_Mario->GetPosition();
+                if (std::abs(firePos.x - marioPos.x) < (fireSize.x + marioSize.x) / 2.0f &&
+                    std::abs(firePos.y - marioPos.y) < (fireSize.y + marioSize.y) / 2.0f) {
+                    if (m_Mario->GetState() == MarioState::HAMMERING) {
+                        TriggerSmash(fireball->GetPosition(), 800);
+                        fireball->SetVisible(false); // 擊碎火球
+                    } else {
+                        m_Mario->Dead();
+                    }
                 }
             }
         }
@@ -1950,7 +2048,7 @@ void App::Update() {
                 const auto marioHalfSize = marioSize / 2.0f;
                 const auto princessHalfSize = princessSize / 2.0f;
                 if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
-                    std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y)) { 
+                    std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y)) {
                     // 移除硬編碼的高度門檻，僅靠 AABB 碰撞判定即可觸發勝利
                 m_Mario->Win();
                 }
