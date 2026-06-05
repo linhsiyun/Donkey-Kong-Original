@@ -205,7 +205,8 @@ void App::UpdateCementPans(MarioState marioState) {
         // 邊界檢查：掉出畫面外則銷毀
         glm::vec2 pos = pan->GetPosition();
         // 允許水泥塊移動到 halfWidth 之外一段距離（如 50px），確保圖片完全消失後再移除
-        if (pan->ShouldRemove() || std::abs(pos.x) > halfWidth + 50.0f) {
+        glm::vec2 logicPos = CoordinateManager::EngineToLogic(pos);
+        if (pan->ShouldRemove() || logicPos.x < -50.0f || logicPos.x > CoordinateManager::MAP_LOGIC_SIZE + 50.0f) {
             m_Renderer.RemoveChild(pan);
             it = m_CementPans.erase(it);
         } else {
@@ -268,6 +269,17 @@ void App::LoadLevel(int level) {
     int stageNum = level % 4;
     if (stageNum == 0) stageNum = 4;
     m_CurrentStage = static_cast<App::Stage>(stageNum);
+
+
+    if (level == 1) {
+        if (!m_OpeningScene) {
+            m_OpeningScene = std::make_shared<OpeningScene>(m_DonkeyKong, m_Map, m_Mario, m_Princess);
+        }
+        m_IsOpeningSequence = true;
+        m_OpeningScene->Start();
+    } else {
+        m_IsOpeningSequence = false;
+    }
 
     // --- 1. 全域資源清理與重置 ---
     // 清除舊酒桶、電梯踏板與插銷，確保渲染器不會殘留上一關的物件
@@ -833,10 +845,22 @@ void App::Update() {
     }
 #endif
 
+    float dt = static_cast<float>(Util::Time::GetDeltaTimeMs());
+    if (m_IsOpeningSequence && m_OpeningScene) {
+        m_OpeningScene->Update(dt);
+
+        if (m_OpeningScene->IsFinished()) {
+            m_IsOpeningSequence = false; // 動畫播完，進入正常遊戲
+        }
+
+        m_Renderer.Update(); // 動畫播放期間依然需要更新畫面
+        return; // 提早結束，避免執行下方瑪利歐的控制或木桶碰撞
+    }
+
+
     // 1. 取得當前狀態，判定是否處於「可遊玩」狀態
     MarioState marioState = m_Mario->GetState();
     bool isPlaying = (marioState != MarioState::DEAD && marioState != MarioState::WIN);
-    float dt = static_cast<float>(Util::Time::GetDeltaTimeMs());
 
     // --- 【新增】過場畫面處理 ---
     if (m_InTransition) {
@@ -949,8 +973,9 @@ void App::Update() {
             }
 
             // 【自動觸發過場】當 Donkey Kong 抱著公主爬出畫面頂端時，自動進入過場
+            glm::vec2 dkLogicPos = CoordinateManager::EngineToLogic(m_DonkeyKong->GetPosition());
             if (m_DonkeyKong->GetBehavior() == DonkeyKong::Behavior::CLIMBING_WITH_PRINCESS &&
-                m_DonkeyKong->GetPosition().y > halfHeight + 50.0f) {
+                dkLogicPos.y < -50.0f) {
                 m_InTransition = true;
                 m_TransitionTimer = 2500.0f; // 顯示 2.5 秒
             }
@@ -965,7 +990,8 @@ void App::Update() {
 
             // 讓 Donkey Kong 持續下墜
             glm::vec2 dkPos = m_DonkeyKong->GetPosition();
-            if (dkPos.y > -halfHeight + 80.0f) { // 掉到螢幕底部
+            glm::vec2 dkLogicPos = CoordinateManager::EngineToLogic(dkPos);
+            if (dkLogicPos.y < 640.0f) { // 掉到螢幕底部 (對應邏輯座標 Y = 640)
                 dkPos.y -= 3.0f; // 下墜速度
                 m_DonkeyKong->SetPosition(dkPos);
 
@@ -1526,9 +1552,10 @@ void App::Update() {
             const auto marioHalfSize = marioSize / 2.0f;
             const auto princessHalfSize = princessSize / 2.0f;
 
+            glm::vec2 marioLogicPos = CoordinateManager::EngineToLogic(marioPos);
             if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
                 std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y) &&
-                marioPos.y >= (halfHeight - 50.0f)) {
+                marioLogicPos.y <= 50.0f) {
                 m_Mario->Win();
             }
         }

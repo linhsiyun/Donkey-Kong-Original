@@ -45,7 +45,8 @@ public:
         STATIONARY_LOOKING,   // 原地搥胸 + 環顧 (Level 1)
         MOVING_CHEST_BEATING, // 左右移動 + 只搥胸 (Level 2+)
         CLIMBING_AWAY,        // 【新增】過關時爬行離開畫面
-        CLIMBING_WITH_PRINCESS // 【新增】抱著公主爬行離開畫面
+        CLIMBING_WITH_PRINCESS, // 【新增】抱著公主爬行離開畫面
+        OPENING_CLIMBING
     };
 
     void SetBehavior(Behavior behavior) { m_Behavior = behavior; }

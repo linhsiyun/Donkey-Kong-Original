@@ -21,6 +21,7 @@
 #include "Barrel.hpp"
 #include "CementPan.hpp"
 #include "MovingLadder.hpp"
+#include "OpeningScene.hpp"
 
 class App {
 public:
@@ -108,9 +109,6 @@ private:
     bool m_PrincessAnimating = false;  // 目前是否正在執行切換動畫
     glm::vec2 m_PrincessRefSize = {0.0f, 0.0f}; // 參考幀尺寸，用於統一顯示大小
 
-    float halfWidth;
-    float halfHeight;
-
     // 定義當前的關卡編號
     int m_CurrentLevel = 1;
     Stage m_CurrentStage = Stage::BARRELS;
@@ -128,6 +126,8 @@ private:
     std::shared_ptr<Character> m_OilBarrel;
     std::shared_ptr<AnimatedCharacter> m_BurningOilBarrel;
     bool m_IsFirstBarrel = true; // 用來追蹤是否為第一顆木桶
+    std::shared_ptr<OpeningScene> m_OpeningScene;
+    bool m_IsOpeningSequence = false;
 };
 
 #endif

@@ -21,7 +21,8 @@ DonkeyKong::DonkeyKong()
           RESOURCE_DIR"/Images/Donkey_climb1.png", // Index 6
           RESOURCE_DIR"/Images/Donkey_climb2.png", // Index 7
           RESOURCE_DIR"/Images/Donkey_Princess1.png", // Index 8
-          RESOURCE_DIR"/Images/Donkey_Princess2.png"  // Index 9
+          RESOURCE_DIR"/Images/Donkey_Princess2.png",  // Index 9
+          RESOURCE_DIR"/Images/push_off.png"
       }) {
     // 步驟一：停止父類別預設的自動播放，我們將自己根據時間控制圖片切換
     Stop();
@@ -62,6 +63,23 @@ void DonkeyKong::Update() {
     // 藉由向下轉型，取得底層控制圖片序列的 Animation 物件，以便直接調整顯示的幀(索引)
     auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
     if (!anim) return; // 保護機制，如果沒抓到就不執行，避免程式崩潰
+
+    if (m_Behavior == Behavior::OPENING_CLIMBING) {
+        m_ChestTimer += dt;
+        int startFrame = 8; // Donkey_Princess1(8) 與 Donkey_Princess2(9) 交替播放
+
+        if (m_CurrentChestFrame < startFrame || m_CurrentChestFrame >= startFrame + 2) {
+            m_CurrentChestFrame = startFrame;
+            anim->SetCurrentFrame(startFrame);
+        }
+
+        if (m_ChestTimer >= 200.0f) { // 每 200ms 切換一次爬行動作
+            m_ChestTimer = 0.0f;
+            m_CurrentChestFrame = (m_CurrentChestFrame == startFrame) ? startFrame + 1 : startFrame;
+            anim->SetCurrentFrame(m_CurrentChestFrame);
+        }
+        return; // 提早結束，不執行後續常規遊戲的搥胸或環顧邏輯
+    }
 
     // --- 【新增】移動邏輯: 爬行離開畫面 ---
     if (m_Behavior == Behavior::CLIMBING_AWAY || m_Behavior == Behavior::CLIMBING_WITH_PRINCESS) {
