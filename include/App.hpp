@@ -96,9 +96,7 @@ private:
     std::vector<std::shared_ptr<Character>> m_TransitionIcons; // 【新增】過場高度圖示清單
 
     // 【新增】Game Over 視覺物件
-    std::shared_ptr<Character> m_GameOverBlock;
-    std::shared_ptr<Util::Text> m_GameOverText;
-    std::shared_ptr<Util::GameObject> m_GameOverTextObj;
+    std::shared_ptr<Character> m_GameOverIcon;
 
     // 【新增】公主精靈與動畫控制參數
     std::shared_ptr<AnimatedCharacter> m_Princess;

@@ -74,6 +74,11 @@ private:
     std::shared_ptr<Util::Text> barrelCountText;
     std::shared_ptr<Util::GameObject> barrelCountObject;
 
+    // --- 高分提醒相關成員 ---
+    std::shared_ptr<Character> m_HighScoreNotifyIcon; 
+    bool m_IsShowingHighScoreIcon = false;
+    float m_HighScoreIconTimer = 0.0f;
+
     float bonusTimer = 0.0f; // 用來計時 1 秒扣一次分數
 
 public:
