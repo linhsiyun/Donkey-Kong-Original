@@ -138,6 +138,17 @@ void Mario::SetState(MarioState newState) {
     //UpdateVisibility(); // 狀態改變，立刻更新圖片顯示
 }
 
+void Mario::Reset() {
+    m_IsJumping = false;
+    m_JumpTimer = 0.0f;
+    m_HammerTimer = 0.0f;
+    m_DeadTimer = 0.0f;
+    m_WaitForHammer = false;
+    m_Direction = MarioDIR::RIGHT;
+    m_BackupDirection = MarioDIR::RIGHT;
+    SetState(MarioState::IDLE);
+}
+
 void Mario::IDLE() {
     // 狀態保護：如果已經死亡或獲勝，不允許回到普通待機狀態
     if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;

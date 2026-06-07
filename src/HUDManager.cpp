@@ -4,6 +4,7 @@
 #include "Character.hpp"
 #include "config.hpp"
 #include "CoordinateManager.hpp"
+#include "Util/Logger.hpp"
 
 static std::string FormatInt(int score, int width) {
     std::ostringstream ss;
@@ -11,8 +12,14 @@ static std::string FormatInt(int score, int width) {
     return ss.str();
 }
 
+static const float HIGH_SCORE_DISPLAY_DURATION = 3000.0f; // 顯示時長 (3秒)
+
 HUDManager::HUDManager() {
     // --- 這裡只設定一次 ---
+    // 初始化分數，確保變數有初始值
+    currentScore = 0;
+    highScore = 0;
+
     const std::string fontPath = RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf";
     //const int fontSize = 16;
     const Util::Color white = Util::Color(255, 255, 255, 255);
@@ -89,11 +96,25 @@ HUDManager::HUDManager() {
     barrelCountObject->SetZIndex(100);
     barrelCountObject->m_Transform.translation = CoordinateManager::LogicToEngine({-70.0f, 125.0f}); // 文字靠右 X=-70
     barrelCountObject->SetVisible(true);
+
+    // --- 初始化 "HIGH SCORE" 圖片圖標 ---
+    m_HighScoreNotifyIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/high_score.png");
+    m_HighScoreNotifyIcon->SetZIndex(100); // 提高層級，確保在所有文字上方
+    
+    // 【參考 PointVisual】：大幅增加縮放倍率，使其在畫面上清晰可見
+    m_HighScoreNotifyIcon->SetScale({4.0f, 4.0f}); 
+    
+    // 初始座標先設在分數旁邊
+    m_HighScoreNotifyIcon->SetPosition(CoordinateManager::LogicToEngine({80.0f, 25.0f}));
+    m_HighScoreNotifyIcon->SetVisible(false);
 }
 
 void HUDManager::Init() {
     currentScore = 0;
     scoreText->SetText(FormatInt(currentScore, 6));
+
+    // 關鍵：重置時只更新文字顯示，但不將 highScore 歸零
+    highScoreText->SetText(FormatInt(highScore, 6));
 
     // 【新增】初始化生命值顯示
     mLives = 3;
@@ -102,6 +123,11 @@ void HUDManager::Init() {
     }
 
     ResetBonus(5000);
+
+    // 重置提醒狀態
+    m_IsShowingHighScoreIcon = false;
+    m_HighScoreIconTimer = 0.0f;
+    if (m_HighScoreNotifyIcon) m_HighScoreNotifyIcon->SetVisible(false);
 }
 
 void HUDManager::AddToRenderer(Util::Renderer& renderer) {
@@ -121,10 +147,13 @@ void HUDManager::AddToRenderer(Util::Renderer& renderer) {
     renderer.AddChild(hammerCountObject);
     renderer.AddChild(barrelIcon);
     renderer.AddChild(barrelCountObject);
+
+    // 加入提醒文字到渲染器
+    renderer.AddChild(m_HighScoreNotifyIcon);
 }
 
 void HUDManager::Update(float deltaTime) {
-    scoreText->SetText(FormatInt(currentScore, 6));   // test only
+    // scoreText->SetText(FormatInt(currentScore, 6));   // 移除這行，避免每幀重複設定
 
     // 更新 Bonus 倒數
     bonusTimer += deltaTime;
@@ -135,12 +164,36 @@ void HUDManager::Update(float deltaTime) {
 
         //TODO: if (bonusTime==0) 玩家死亡
     }
+
+    // 處理高分紀錄顯示計時邏輯
+    if (m_IsShowingHighScoreIcon) {
+        m_HighScoreIconTimer += deltaTime;
+        if (m_HighScoreIconTimer >= HIGH_SCORE_DISPLAY_DURATION) {
+            m_IsShowingHighScoreIcon = false;
+            m_HighScoreIconTimer = 0.0f;
+            m_HighScoreNotifyIcon->SetVisible(false); // 時間到，隱藏圖示
+        }
+    }
 }
 
 void HUDManager::AddScore(int points) {
+    int oldScore = currentScore;
     currentScore += points;
     scoreText->SetText(FormatInt(currentScore, 6));
+
     if (currentScore > highScore) {
+        // 當分數超越歷史最高紀錄時觸發（若持續得分，則重置三秒計時，讓圖標維持顯示）
+        if (oldScore <= highScore || m_IsShowingHighScoreIcon) {
+            LOG_INFO("New High Score Triggered! Current: {} High: {}", currentScore, highScore);
+            m_IsShowingHighScoreIcon = true;
+            m_HighScoreIconTimer = 0.0f; // 重置計時器，確保顯示足夠三秒
+
+            // 【動態對齊】：確保圖片位置跟隨最高分數文字的位置，並向右偏移
+            glm::vec2 scorePos = highScoreObject->m_Transform.translation;
+            m_HighScoreNotifyIcon->SetPosition({scorePos.x + 130.0f, scorePos.y});
+            
+            m_HighScoreNotifyIcon->SetVisible(true);
+        }
         highScore = currentScore;
         highScoreText->SetText(FormatInt(highScore, 6));
     }

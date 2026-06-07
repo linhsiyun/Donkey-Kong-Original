@@ -59,6 +59,9 @@ public:
     // 設定當前狀態
     void SetState(MarioState newState); // { m_CurrentState = newState; }
 
+    // 重置 Mario 的所有邏輯標記（計時器、狀態、方向等）
+    void Reset();
+
     // 改變狀態（例如從 IDLE 變成 JUMPING）
     //void ChangeState(MarioState newState);
 

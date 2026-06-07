@@ -331,7 +331,7 @@ void App::SpawnPointVisual(glm::vec2 position, int score) {
  * @param level 當前的關卡進度總數。
  */
 void App::LoadLevel(int level) {
-    m_CurrentLevel = level;
+
     int stageNum = level % 4;
     if (stageNum == 0) stageNum = 4;
     m_CurrentStage = static_cast<App::Stage>(stageNum);
@@ -421,13 +421,19 @@ void App::LoadLevel(int level) {
     m_ActiveRivetPos = {0.0f, 0.0f};
     m_HasActiveRivet = false;
     m_RivetCount = 0;
+
+    // 清除過場畫面殘留物件，避免在過場中重置遊戲時圖示留在畫面上
+    for (auto& icon : m_TransitionIcons) m_Renderer.RemoveChild(icon);
+    m_TransitionIcons.clear();
+    if (m_TransitionTextObj) m_TransitionTextObj->SetVisible(false);
+
     m_InTransition = false;
     m_DKFallTimer = 0.0f;
     m_FireballTimerMs = 0.0f;
     m_FireballJumping = false;
 
     // // 重置 Mario 以及其它遊戲角色的狀態與可見性 (移至開頭以統一管理)
-    m_Mario->SetState(MarioState::IDLE);
+    m_Mario->Reset();
     m_Fireball->SetVisible(false);
     m_Fireball2->SetVisible(false);
 
@@ -807,12 +813,16 @@ void App::LoadLevel(int level) {
 
         m_Fireball->SetPosition(CoordinateManager::LogicToEngine({200.0f, 300.0f}));;
         m_Fireball->SetVisible(true);
-        m_Fireball->SetState(Fiamma::State::FALLING); 
+        m_Fireball->SetState(Fiamma::State::FALLING);
 
         m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({600.0f, 300.0f}));;
         m_Fireball2->SetVisible(true);
-        m_Fireball2->SetState(Fiamma::State::FALLING); 
-       
+        m_Fireball2->SetState(Fiamma::State::FALLING);
+
+        // 第三關不需要槌子，將其全部隱藏
+        if (m_HammerItem) m_HammerItem->SetVisible(false);
+        if (m_HammerItem2) m_HammerItem2->SetVisible(false);
+
     } else if (m_CurrentStage == App::Stage::RIVETS) {
         dkLogicPos = {360.0f, 180.0f};      // DK 在頂端中心
         marioLogicPos = {50.0f, 665.0f};
@@ -852,11 +862,11 @@ void App::LoadLevel(int level) {
 
         m_Fireball->SetPosition(CoordinateManager::LogicToEngine({650.0f, 650.0f}));;
         m_Fireball->SetVisible(true);
-        m_Fireball->SetState(Fiamma::State::FALLING); 
+        m_Fireball->SetState(Fiamma::State::FALLING);
 
         m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({250.0f, 250.0f}));;
         m_Fireball2->SetVisible(true);
-        m_Fireball2->SetState(Fiamma::State::FALLING); 
+        m_Fireball2->SetState(Fiamma::State::FALLING);
 
         const auto& data = m_Map->GetLevelData();
         for (int y = 0; y < data.GetHeight(); ++y) {
@@ -895,91 +905,6 @@ void App::LoadLevel(int level) {
     float engineMinX = CoordinateManager::LogicToEngine({dkMinLogicX, 0.0f}).x;
     float engineMaxX = CoordinateManager::LogicToEngine({dkMaxLogicX, 0.0f}).x;
     m_DonkeyKong->SetMoveBounds(engineMinX, engineMaxX);
-
-
-    if (m_CurrentStage == App::Stage::ELEVATORS) {
-#if 0
-        // 1. 定義電梯的上下極限邊界 (邏輯 Y 座標)
-        float logicTopY = 200.0f;
-        float logicBotY = 680.0f;
-        float logicLeftX = 130.0f;
-        float logicRightX = 335.0f;
-        float logicSpacing = 160.0f;
-
-        // 轉換為引擎座標
-        float engTopY = CoordinateManager::LogicToEngine({0.0f, logicTopY}).y;
-        float engBotY = CoordinateManager::LogicToEngine({0.0f, logicBotY}).y;
-        glm::vec2 mapScale = m_Map->GetScale();
-
-        // 雨傘道具 (Stage 3)
-        auto createUmbrella = [&](float logicX, float logicY) {
-            auto u = std::make_shared<Character>(RESOURCE_DIR"/Images/umbrella.png");
-            u->SetScale(mapScale * 1.5f);
-            u->SetZIndex(40);
-            u->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
-            m_Umbrellas.push_back(u);
-            m_Renderer.AddChild(u);
-        };
-
-        // 1. 左邊最上層再往下一層 (DK 層下方)
-        createUmbrella(30.0f, 260.0f);
-        // 2. 最右邊最上面那層
-        createUmbrella(690.0f, 180.0f);
-
-        // 皮包道具 (Stage 3)
-        auto createPurse = [&](float logicX, float logicY) {
-            auto p = std::make_shared<Character>(RESOURCE_DIR"/Images/purse.png");
-            p->SetScale(mapScale * 1.5f);
-            p->SetZIndex(40);
-            p->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
-            m_Purses.push_back(p);
-            m_Renderer.AddChild(p);
-        };
-
-        // 放在兩條移動電梯中間 (X 約在 -80)，高度設在中間層
-        createPurse(225.0f, 400.0f);
-
-        // 建立左側「上升」電梯 (UP)
-        for (float currY = logicBotY; currY >= logicTopY; currY -= logicSpacing) {
-            auto el = std::make_shared<Elevator>(Elevator::Direction::UP, engBotY, engTopY, 1.0f);
-            el->SetScale(mapScale);
-            el->SetPosition(CoordinateManager::LogicToEngine({logicLeftX, currY}));
-            m_Elevators.push_back(el);
-            m_Renderer.AddChild(el);
-        }
-
-        // 建立右側「下降」電梯 (DOWN)
-        for (float currY = logicTopY; currY <= logicBotY; currY += logicSpacing) {
-            auto el = std::make_shared<Elevator>(Elevator::Direction::DOWN, engBotY, engTopY, 1.0f);
-            el->SetScale(mapScale);
-            el->SetPosition(CoordinateManager::LogicToEngine({logicRightX, currY}));
-            m_Elevators.push_back(el);
-            m_Renderer.AddChild(el);
-        }
-
-        float leftElX = CoordinateManager::LogicToEngine({logicLeftX, 0.0f}).x;
-        float rightElX = CoordinateManager::LogicToEngine({logicRightX, 0.0f}).x;
-
-        auto createStop = [&](float x, float y, bool upsideDown) {
-            auto stop = std::make_shared<Character>(RESOURCE_DIR"/Images/ElevatorStop.png");
-            stop->SetZIndex(40);
-            if (upsideDown) {
-                stop->SetScale({mapScale.x * 2.0f, -mapScale.y * 2.0f});
-            } else {
-                stop->SetScale(mapScale * 2.0f);
-            }
-            stop->SetPosition({x, y});
-            m_ElevatorStops.push_back(stop);
-            m_Renderer.AddChild(stop);
-        };
-
-        // 傳入精準的邏輯轉換世界座標，並結合高低微調
-        createStop(leftElX,  engTopY - 4.0f * mapScale.y, false); // 左上
-        createStop(leftElX,  engBotY - 7.0f * mapScale.y, true);  // 左下
-        createStop(rightElX, engTopY - 4.0f * mapScale.y, false); // 右上
-        createStop(rightElX, engBotY - 7.0f * mapScale.y, true);  // 右下
-#endif
-    }
 
     m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
 }
@@ -1145,24 +1070,16 @@ void App::Start() {
     m_RightMask->SetVisible(false);
     m_Renderer.AddChild(m_RightMask);
 
-    // 【新增】初始化 Game Over 視覺物件 (小長方形黑塊 + 紅色文字)
-    m_GameOverBlock = std::make_shared<Character>(RESOURCE_DIR"/Images/black.png");
-    m_GameOverBlock->SetZIndex(110); // 確保在所有物件之上
-    m_GameOverBlock->SetScale({450.0f, 150.0f});
-    m_GameOverBlock->SetPosition({0.0f, 0.0f});
-    m_GameOverBlock->SetVisible(false);
-    m_Renderer.AddChild(m_GameOverBlock);
-
-    m_GameOverText = std::make_shared<Util::Text>(RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf", 30, "GAME OVER", Util::Color(255, 0, 0, 255));
-    m_GameOverTextObj = std::make_shared<Util::GameObject>();
-    m_GameOverTextObj->SetDrawable(m_GameOverText);
-    m_GameOverTextObj->SetZIndex(151); // 提高層級，確保在最上層
-    m_GameOverTextObj->m_Transform.translation = {0.0f, 0.0f}; // 強制定位在螢幕中心
-    m_GameOverTextObj->SetVisible(false);
-    m_Renderer.AddChild(m_GameOverTextObj);
+    m_GameOverIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/game_over.png");
+    m_GameOverIcon->SetZIndex(100);
+    m_GameOverIcon->SetScale({3.0f, 3.0f}); // 縮放成適合的大小
+    m_GameOverIcon->SetPosition(CoordinateManager::LogicToEngine({360.0f, 360.0f})); // 置中
+    m_GameOverIcon->SetVisible(false);
+    m_Renderer.AddChild(m_GameOverIcon);
 
     // 載入當前關卡 (這會負責載入地圖、設定角色的初始位置與重置狀態，也處理 DonkeyKong 給 Mario 的邊界傳遞)
     m_Renderer.AddChild(m_FuelCan);
+    m_CurrentLevel = 1;
     LoadLevel(m_CurrentLevel);
 
     // 設定 App 物件初始狀態為 UPDATE，開始遊戲主迴圈
@@ -1183,21 +1100,30 @@ void App::Start() {
  */
 void App::Update() {
 
+#if 1
+    // 將結束程式的檢查移到最上方，確保在 Game Over 狀態下也能觸發
+    if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) || Util::Input::IfExit()) {
+        m_CurrentState = State::END;
+    }
+#endif
+
 #if 1  //sdbg: 按下 N 鍵切換到下一關測試, 按下 R 鍵 reset
     if (Util::Input::IsKeyDown(Util::Keycode::N)) {
         m_CurrentLevel++;
+        if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
         LoadLevel(m_CurrentLevel);
+        m_TransitionTimer = 0.0f;
     }
     else if (Util::Input::IsKeyDown(Util::Keycode::R)) {
         LoadLevel(m_CurrentLevel);
+        m_TransitionTimer = 0.0f;
     }
 
-    // 【新增】處理 Game Over 狀態下的重啟邏輯
+    // 處理 Game Over 狀態下的重啟邏輯
     if (m_IsGameOver) {
         if (Util::Input::IsKeyDown(Util::Keycode::R) || Util::Input::IsKeyDown(Util::Keycode::SPACE)) {
             m_IsGameOver = false;
-            m_GameOverBlock->SetVisible(false);
-            m_GameOverTextObj->SetVisible(false);
+            m_GameOverIcon->SetVisible(false);
             m_CurrentLevel = 1;
             m_HUDText->Init(); // 這會同時重置分數、Bonus 與生命值
             LoadLevel(m_CurrentLevel);
@@ -1237,7 +1163,7 @@ void App::Update() {
 
                 float yPos = -160.0f + (i - 1) * 90.0f; // 調整起始高度與每一層的向上間距
                 kong->SetPosition({40.0f, yPos});      // Donkey 在右側
-                label->SetPosition({-90.0f, yPos});    // 高度數字在左側
+                label->SetPosition({-120.0f, yPos});    // 高度數字在左側
 
                 kong->SetScale(m_Map->GetScale() * 1.0f);  // 縮小倍率 1.5f
                 label->SetScale(m_Map->GetScale() * 1.0f);
@@ -1264,6 +1190,7 @@ void App::Update() {
             m_DonkeyKong->SetVisible(true);
             m_TransitionTextObj->SetVisible(false);
             m_CurrentLevel++;
+            if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
             LoadLevel(m_CurrentLevel); // 載入新關卡（這會自動隱藏 m_BlackCover）
         }
         m_HUDText->Update(dt);
@@ -1285,6 +1212,12 @@ void App::Update() {
 
     // 當目前已經通關，並且處於勝利狀態時，我們讓玩家按下按鈕後可以自動進到下一關
     if (marioState == MarioState::WIN) {
+        // 當進入勝利狀態的第一幀，將剩餘的 Bonus 點數轉換為總分
+        if (m_HUDText && m_HUDText->GetBonus() > 0) {
+            m_HUDText->AddScore(m_HUDText->GetBonus());
+            m_HUDText->ResetBonus(0); // 將 Bonus 歸零以防在動畫期間重複加分
+        }
+
 
         // --- 【新增】勝利視覺表現 ---
         if (m_Princess) {
@@ -1370,12 +1303,16 @@ void App::Update() {
     if (marioState == MarioState::DEAD && m_Mario->IsDeathAnimationDone()) {
         m_HUDText->DecreaseLife();
         if (m_HUDText->GetLives() <= 0) {
+            LOG_DEBUG("GAME OVER TRIGGERED");
             // 進入 Game Over 狀態
             m_IsGameOver = true;
-            m_Mario->SetPosition({0.0f, -2000.0f}); // 將 Mario 移出畫面
-            m_GameOverBlock->SetVisible(true);
-            m_GameOverBlock->SetZIndex(150); // 確保黑塊在 HUD 之上
-            m_GameOverTextObj->SetVisible(true);
+
+            // 1. 顯示 Game Over 圖片。
+            m_GameOverIcon->SetVisible(true);
+            // 確保位置與縮放正確 (360, 360) 對應螢幕中心
+            //m_GameOverIcon->SetPosition(CoordinateManager::LogicToEngine({360.0f, 360.0f}));
+            //m_GameOverIcon->SetScale({3.0f, 3.0f});
+            //m_GameOverIcon->SetZIndex(100); // 確保顯示在最前方
         } else {
             // 生命還夠，重新載入當前關卡
             LoadLevel(m_CurrentLevel);
@@ -1839,7 +1776,7 @@ void App::Update() {
                     m_Fireball->SetVisible(true);
                     // 設定火球從油桶的位置彈出
                     glm::vec2 fuelPos = m_FuelCan->GetPosition();
-                    m_Fireball->SetPosition({fuelPos.x, fuelPos.y + 20.0f});
+                    m_Fireball->SetPosition({fuelPos.x, fuelPos.y + 30.0f});
                     m_Fireball->SetState(Fiamma::State::FALLING); //
                     m_FireballJumping = true;      // 啟用跳躍狀態
                     m_FireballVelocityY = 250.0f;  // 增加初速度以抵銷 Fiamma 內部的下墜拉力
@@ -1853,7 +1790,7 @@ void App::Update() {
                     m_Fireball2->SetVisible(true);
                     // 設定火球從油桶的位置彈出
                     glm::vec2 fuelPos = m_FuelCan->GetPosition();
-                    m_Fireball2->SetPosition({fuelPos.x, fuelPos.y + 20.0f});
+                    m_Fireball2->SetPosition({fuelPos.x, fuelPos.y + 30.0f});
                     m_Fireball2->SetState(Fiamma::State::FALLING);
                     m_FireballJumping2 = true;      // 啟用跳躍狀態
                     m_FireballVelocityY2 = 250.0f;  // 給予向上的初速度
@@ -2040,6 +1977,21 @@ void App::Update() {
                     m_Mario->Win();
                 }
             }
+            // 【新增】Stage 3 (L=03) 勝利條件：Mario 必須到達與公主相同的高度平台
+            else if (m_CurrentStage == Stage::ELEVATORS) {
+                const auto princessPos = m_Princess->GetPosition();
+                const auto marioSize = m_Mario->GetSize();
+                const auto princessSize = m_Princess->GetSize();
+
+                // 公主中心在 Logic Y = 45，我們設定 Mario 必須高於 Logic Y = 100 (即 Engine Y 較大)
+                // 這樣可以避免 Mario 在爬最後一段梯子時就因為 AABB 觸碰到公主而過早觸發勝利
+                float winThresholdY = CoordinateManager::LogicToEngine({0.0f, 100.0f}).y;
+                if (marioPos.y >= winThresholdY &&
+                    std::abs(marioPos.x - princessPos.x) < (marioSize.x + princessSize.x) / 2.0f &&
+                    std::abs(marioPos.y - princessPos.y) < (marioSize.y + princessSize.y) / 2.0f) {
+                    m_Mario->Win();
+                }
+            }
             // 其他關卡的勝利條件：Mario 碰撞公主
             else {
                 const auto marioSize = m_Mario->GetSize();
@@ -2063,16 +2015,6 @@ END_OF_LOGIC:
     // 即使遊戲結束，Mario 的動畫更新 (例如 Win 動畫) 與 Renderer 仍需持續運行
     m_Mario->Update();
     m_Renderer.Update();
-
-
-    /*
-     * Do not touch the code below as they serve the purpose for
-     * closing the window.
-     */
-    if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) ||
-        Util::Input::IfExit()) {
-        m_CurrentState = State::END;
-    }
 }
 
 void App::End() { // NOLINT(this method will mutate members in the future)
