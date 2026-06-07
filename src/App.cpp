@@ -1776,7 +1776,7 @@ void App::Update() {
                     m_Fireball->SetVisible(true);
                     // 設定火球從油桶的位置彈出
                     glm::vec2 fuelPos = m_FuelCan->GetPosition();
-                    m_Fireball->SetPosition({fuelPos.x, fuelPos.y + 20.0f});
+                    m_Fireball->SetPosition({fuelPos.x, fuelPos.y + 30.0f});
                     m_Fireball->SetState(Fiamma::State::FALLING); //
                     m_FireballJumping = true;      // 啟用跳躍狀態
                     m_FireballVelocityY = 250.0f;  // 增加初速度以抵銷 Fiamma 內部的下墜拉力
@@ -1790,7 +1790,7 @@ void App::Update() {
                     m_Fireball2->SetVisible(true);
                     // 設定火球從油桶的位置彈出
                     glm::vec2 fuelPos = m_FuelCan->GetPosition();
-                    m_Fireball2->SetPosition({fuelPos.x, fuelPos.y + 20.0f});
+                    m_Fireball2->SetPosition({fuelPos.x, fuelPos.y + 30.0f});
                     m_Fireball2->SetState(Fiamma::State::FALLING);
                     m_FireballJumping2 = true;      // 啟用跳躍狀態
                     m_FireballVelocityY2 = 250.0f;  // 給予向上的初速度
