@@ -157,6 +157,12 @@ void Fiamma::Update() {
 
         if (m_ClimbDir == VerticalDirection::UP) {
             currentPos.y += m_ClimbSpeed * dtSec;
+
+            // 防止爬出地圖頂端 (視窗外)：若火球頂部觸及地圖上邊界，強迫改為向下爬
+            if (m_Map && (currentPos.y + size.y / 2.0f) > m_Map->GetTopBoundary()) {
+                currentPos.y = m_Map->GetTopBoundary() - (size.y / 2.0f);
+                m_ClimbDir = VerticalDirection::DOWN;
+            }
         } else {
             currentPos.y -= m_ClimbSpeed * dtSec;
         }

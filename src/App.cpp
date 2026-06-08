@@ -1301,6 +1301,11 @@ void App::Update() {
 
     // --- 【新增】死亡後續處理：生命值減少與 Game Over 判定 ---
     if (marioState == MarioState::DEAD && m_Mario->IsDeathAnimationDone()) {
+        // 在此時機點存檔
+        if (m_HUDText) {
+            m_HUDText->SaveHighScore();
+        }
+
         m_HUDText->DecreaseLife();
         if (m_HUDText->GetLives() <= 0) {
             LOG_DEBUG("GAME OVER TRIGGERED");

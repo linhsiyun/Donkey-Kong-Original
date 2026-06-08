@@ -1,6 +1,7 @@
 #include "HUDManager.hpp"
 #include <iomanip>
 #include <sstream>
+#include <fstream>
 #include "Character.hpp"
 #include "config.hpp"
 #include "CoordinateManager.hpp"
@@ -100,16 +101,25 @@ HUDManager::HUDManager() {
     // --- 初始化 "HIGH SCORE" 圖片圖標 ---
     m_HighScoreNotifyIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/high_score.png");
     m_HighScoreNotifyIcon->SetZIndex(100); // 提高層級，確保在所有文字上方
-    
+
     // 【參考 PointVisual】：大幅增加縮放倍率，使其在畫面上清晰可見
-    m_HighScoreNotifyIcon->SetScale({4.0f, 4.0f}); 
-    
+    m_HighScoreNotifyIcon->SetScale({4.0f, 4.0f});
+
     // 初始座標先設在分數旁邊
     m_HighScoreNotifyIcon->SetPosition(CoordinateManager::LogicToEngine({80.0f, 25.0f}));
     m_HighScoreNotifyIcon->SetVisible(false);
 }
 
 void HUDManager::Init() {
+    // 從檔案載入最高分
+    std::ifstream file(RESOURCE_DIR "/highscore.txt");
+    if (file.is_open()) {
+        file >> highScore;
+        file.close();
+    } else {
+        highScore = 0; // 若檔案不存在，預設為 0
+    }
+
     currentScore = 0;
     scoreText->SetText(FormatInt(currentScore, 6));
 
@@ -191,11 +201,20 @@ void HUDManager::AddScore(int points) {
             // 【動態對齊】：確保圖片位置跟隨最高分數文字的位置，並向右偏移
             glm::vec2 scorePos = highScoreObject->m_Transform.translation;
             m_HighScoreNotifyIcon->SetPosition({scorePos.x + 130.0f, scorePos.y});
-            
+
             m_HighScoreNotifyIcon->SetVisible(true);
         }
         highScore = currentScore;
         highScoreText->SetText(FormatInt(highScore, 6));
+    }
+}
+
+void HUDManager::SaveHighScore() {
+    std::ofstream file(RESOURCE_DIR "/highscore.txt");
+    if (file.is_open()) {
+        file << highScore;
+        file.close();
+        LOG_INFO("High score saved: {}", highScore);
     }
 }
 

@@ -75,7 +75,7 @@ private:
     std::shared_ptr<Util::GameObject> barrelCountObject;
 
     // --- 高分提醒相關成員 ---
-    std::shared_ptr<Character> m_HighScoreNotifyIcon; 
+    std::shared_ptr<Character> m_HighScoreNotifyIcon;
     bool m_IsShowingHighScoreIcon = false;
     float m_HighScoreIconTimer = 0.0f;
 
@@ -94,6 +94,7 @@ public:
     void AddScore(int points);
     void ResetBonus(int amount = 5000);
     void DecreaseLife();       // 【新增】扣除生命
+    void SaveHighScore();      // 【新增】宣告存檔函式
     int GetLives() const { return mLives; } // 【新增】取得剩餘生命
     int GetBonus() { return bonusTime; }
     void SetLevel(int level);
