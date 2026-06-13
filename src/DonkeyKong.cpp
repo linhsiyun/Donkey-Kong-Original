@@ -21,7 +21,9 @@ DonkeyKong::DonkeyKong()
           RESOURCE_DIR"/Images/Donkey_climb1.png", // Index 6
           RESOURCE_DIR"/Images/Donkey_climb2.png", // Index 7
           RESOURCE_DIR"/Images/Donkey_Princess1.png", // Index 8
-          RESOURCE_DIR"/Images/Donkey_Princess2.png"  // Index 9
+          RESOURCE_DIR"/Images/Donkey_Princess2.png", // Index 9
+          RESOURCE_DIR"/Images/Donkey_fall1.png",     // Index 10
+          RESOURCE_DIR"/Images/Donkey_fall2.png"      // Index 11
       }) {
     // 步驟一：停止父類別預設的自動播放，我們將自己根據時間控制圖片切換
     Stop();
@@ -81,6 +83,23 @@ void DonkeyKong::Update() {
         if (m_ChestTimer >= 200.0f) { // 每 200ms 切換爬行動作
             m_ChestTimer = 0.0f;
             m_CurrentChestFrame = (m_CurrentChestFrame == startFrame) ? startFrame + 1 : startFrame;
+            anim->SetCurrentFrame(m_CurrentChestFrame);
+        }
+        return;
+    }
+
+    // --- 【新增】受傷/暈眩邏輯: 停在原地撥放 fall1/fall2 切換 ---
+    if (m_Behavior == Behavior::FALLING_STUNNED) {
+        m_ChestTimer += dt;
+        // 初始化動畫幀範圍，確保從 fall1 (10) 開始
+        if (m_CurrentChestFrame < 10 || m_CurrentChestFrame > 11) {
+            m_CurrentChestFrame = 10;
+            anim->SetCurrentFrame(10);
+        }
+
+        if (m_ChestTimer >= 200.0f) { // 每 200ms 切換受傷動作
+            m_ChestTimer = 0.0f;
+            m_CurrentChestFrame = (m_CurrentChestFrame == 10) ? 11 : 10;
             anim->SetCurrentFrame(m_CurrentChestFrame);
         }
         return;

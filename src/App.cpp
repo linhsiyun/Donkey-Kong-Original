@@ -160,6 +160,10 @@ void App::UpdateBarrels(MarioState marioState) {
             glm::vec2 marioSize = m_Mario->GetSize();
             if (marioState == MarioState::HAMMERING) {
                 marioSize *= 1.8f; // 拿槌子時攻擊範圍變大
+            } else if (marioState == MarioState::JUMPING) {
+                // [優化] 跳躍時縮減瑪利歐頂部的判定，避免撞到上層地板的木桶
+                // 將高度判定縮減為 70%，且位置稍微往下靠
+                marioSize.y *= 0.7f;
             }
 
             // AABB 碰撞偵測 (與瑪利歐)
@@ -222,7 +226,11 @@ void App::UpdateCementPans(MarioState marioState) {
 
         // 碰撞偵測 (Mario)
         glm::vec2 marioSize = m_Mario->GetSize();
-        if (marioState == MarioState::HAMMERING) marioSize *= 1.8f;
+        if (marioState == MarioState::HAMMERING) {
+            marioSize *= 1.8f;
+        } else if (marioState == MarioState::JUMPING) {
+            marioSize.y *= 0.7f; // 跳躍時縮減高度判定
+        }
 
         const auto panPos = pan->GetPosition();
         const auto panSize = pan->GetSize();
@@ -301,6 +309,50 @@ void App::TriggerSmash(glm::vec2 position, int score) {
     LOG_DEBUG("SMASH TRIGGERED at ({}, {})", position.x, position.y);
 }
 
+void App::CheckJumpScore() {
+    // 只有在跳躍狀態才進行判定
+    if (m_Mario->GetState() != MarioState::JUMPING && m_Mario->GetState() != MarioState::FALLING) {
+        return;
+    }
+
+    glm::vec2 marioPos = m_Mario->GetPosition();
+    glm::vec2 marioSize = m_Mario->GetSize();
+    float marioBottom = marioPos.y - (marioSize.y / 2.0f);
+
+    auto process = [&](void* id, glm::vec2 objPos, glm::vec2 objSize) {
+        if (m_JumpOverObstacles.count(id)) return;
+
+        // 檢查 X 軸重疊：瑪利歐的 X 軸與障礙物交會時
+        float marioLeft = marioPos.x - (marioSize.x / 4.0f); // 縮小範圍增加精準度
+        float marioRight = marioPos.x + (marioSize.x / 4.0f);
+        float objLeft = objPos.x - (objSize.x / 2.0f);
+        float objRight = objPos.x + (objSize.x / 2.0f);
+
+        if (marioRight > objLeft && marioLeft < objRight) {
+            // 檢查 Y 軸：瑪利歐底部必須高於障礙物頂部
+            float objTop = objPos.y + (objSize.y / 2.0f);
+            float distY = marioBottom - objTop;
+            // 僅紀錄跳過的物件 ID，不在此處加分
+            if (distY > 0 && distY < 50.0f) {
+                m_JumpOverObstacles.insert(id);
+            }
+        }
+    };
+
+    for (auto& b : m_Barrels) {
+        if(b->GetVisibility()) process(b.get(), b->GetPosition(), b->GetSize());
+    }
+    if (m_Fireball && m_Fireball->GetVisibility()) {
+        process(m_Fireball.get(), m_Fireball->GetPosition(), m_Fireball->GetSize());
+    }
+    if (m_Fireball2 && m_Fireball2->GetVisibility()) { 
+        process(m_Fireball2.get(), m_Fireball2->GetPosition(), m_Fireball2->GetSize());
+    }
+    for (auto& p : m_CementPans) { 
+        process(p.get(), p->GetPosition(), p->GetSize());
+    }
+}
+
 void App::SpawnPointVisual(glm::vec2 position, int score) {
     std::string imagePath;
     if (score == 100) imagePath = RESOURCE_DIR"/Images/Point_100.png";
@@ -340,8 +392,8 @@ void App::LoadLevel(int level) {
     halfWidth = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
     halfHeight = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
 
-    // 根據關卡動態調整跳躍性能：僅在電梯關卡使用 30.0f，其餘關卡維持原版 45.0f
-    g_MarioTotalJumpTime = (m_CurrentStage == App::Stage::ELEVATORS) ? 30.0f : 45.0f;
+    // 根據關卡動態調整跳躍性能：所有關卡都使用 30.0f
+    g_MarioTotalJumpTime = 30.0f;
 
     // --- 1. 全域資源清理與重置 ---
     // 清除舊酒桶、電梯踏板與插銷，確保渲染器不會殘留上一關的物件
@@ -431,6 +483,7 @@ void App::LoadLevel(int level) {
     m_DKFallTimer = 0.0f;
     m_FireballTimerMs = 0.0f;
     m_FireballJumping = false;
+    m_JumpOverObstacles.clear();
 
     // // 重置 Mario 以及其它遊戲角色的狀態與可見性 (移至開頭以統一管理)
     m_Mario->Reset();
@@ -498,7 +551,7 @@ void App::LoadLevel(int level) {
         // 第一關道具座標
         // m_Fireball->SetPosition(CoordinateManager::LogicToEngine({260.0f, 430.0f}));
         if (m_HammerItem) m_HammerItem->SetPosition(CoordinateManager::LogicToEngine({510.0f, 535.0f}));
-        if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({80.0f, 220.0f}));
+        if (m_HammerItem2) m_HammerItem2->SetPosition(CoordinateManager::LogicToEngine({80.0f, 210.0f}));
 
         m_OilBarrel = std::make_shared<Character>(RESOURCE_DIR"/Images/OilBarrel.png");
         // 2. 設定渲染層級（在背景地圖之上，瑪利歐之下即可）
@@ -891,7 +944,7 @@ void App::LoadLevel(int level) {
 
     // 公主座標所有關卡皆相同，可以直接放在 if 外面
     if (m_Princess) {
-        m_Princess->SetPosition(CoordinateManager::LogicToEngine({340.0f, 45.0f}));
+        m_Princess->SetPosition(CoordinateManager::LogicToEngine({340.0f, 50.0f}));
     }
 
     // --- 4. 統一執行m_Mario, m_DonkeyKong座標轉換與套用 ---
@@ -1006,9 +1059,9 @@ void App::Start() {
 
     // 初始化黑色遮蓋方塊 (用於 Stage 4 通關)
     // 假設你有一個小小的黑色圖片 black.png，我們將其放大以遮住中間梯子區域
-    m_BlackCover = std::make_shared<Character>(RESOURCE_DIR"/Images/black.png");
+    m_BlackCover = std::make_shared<Character>(RESOURCE_DIR"/Images/black_04.png");
     m_BlackCover->SetZIndex(10); // 初始設為較低層級（在地圖 -10 之後，但在角色 50 之前）
-    m_BlackCover->SetScale({1.0f, 1.0f}); // 初始化為預設比例，過關時再動態調整
+    m_BlackCover->SetScale({2.0f, 1.0f}); // 初始化為預設比例，過關時再動態調整
     m_BlackCover->SetVisible(false);
     m_Renderer.AddChild(m_BlackCover);
 
@@ -1117,6 +1170,22 @@ void App::Update() {
     else if (Util::Input::IsKeyDown(Util::Keycode::R)) {
         LoadLevel(m_CurrentLevel);
         m_TransitionTimer = 0.0f;
+    }
+    else if (Util::Input::IsKeyDown(Util::Keycode::H)) {
+        // 按下 H 鍵重置最高分
+        m_HUDText->ResetHighScore();
+    }
+    else if (Util::Input::IsKeyDown(Util::Keycode::F) && m_CurrentStage == Stage::RIVETS) {
+        // Debug: 立即拔掉所有插銷並觸發勝利動畫
+        for (auto& pair : m_RivetVisuals) {
+            m_Renderer.RemoveChild(pair.second);
+            auto [rx, ry] = pair.first;
+            glm::vec2 worldPos = m_Map->GetTileWorldPosition(rx, ry);
+            m_Map->SetTileAtPosition(worldPos.x, worldPos.y, TileType::EMPTY);
+        }
+        m_RivetVisuals.clear();
+        m_RivetCount = 0;
+        m_Mario->Win();
     }
 
     // 處理 Game Over 狀態下的重啟邏輯
@@ -1265,32 +1334,42 @@ void App::Update() {
 
             m_DonkeyKong->Update(); // 勝利時也需要驅動 DK 的 Update 以執行爬行位移
         }
+    }
 
-        // --- Stage 4 特有的通關動畫：DK 掉下去後自動進入過場 ---
-        if (m_CurrentStage == Stage::RIVETS) {
-            // 修正：黑幕只遮蓋中間結構，且層級設為 10 確保大金剛 (50) 在前方下墜
-            m_BlackCover->SetVisible(true);
-            // 修正縮放：改用地圖縮放倍率為基準，確保遮罩寬度維持在中間梯子範圍（邏輯寬度約 340 單位）
-            m_BlackCover->SetScale(m_Map->GetScale() * glm::vec2(1.5f, 1.5f));
-            m_BlackCover->SetZIndex(10);
-            m_BlackCover->SetPosition({0.0f, -45.0f}); // 僅遮住中間結構，保留兩側地圖
+    // --- Stage 4 特有的通關動畫：DK 掉下去後自動進入過場 ---
+    if (m_CurrentStage == Stage::RIVETS && marioState == MarioState::WIN) {
+        m_BlackCover->SetVisible(true);
+        m_BlackCover->SetScale(m_Map->GetScale() * glm::vec2(2.0f, 2.0f));
+        m_BlackCover->SetZIndex(49);
+        m_BlackCover->SetPosition(CoordinateManager::LogicToEngine({350.0f, 442.0f}));
 
-            // 讓 Donkey Kong 持續下墜
-            glm::vec2 dkPos = m_DonkeyKong->GetPosition();
-            if (dkPos.y > -halfHeight + 80.0f) { // 掉到螢幕底部
-                dkPos.y -= 3.0f; // 下墜速度
+        glm::vec2 dkPos = m_DonkeyKong->GetPosition();
+        if (m_DonkeyKong->GetBehavior() != DonkeyKong::Behavior::FALLING_STUNNED) {
+            // 階段 A：下墜旋轉中
+            if (dkPos.y > -180.0f) {
+                dkPos.y -= 4.0f;
                 m_DonkeyKong->SetPosition(dkPos);
 
-                // 每 200ms 反轉一次 Y 軸縮放，達到緩慢旋轉效果
-                m_DKFallTimer += static_cast<float>(Util::Time::GetDeltaTimeMs());
+                m_DKFallTimer += dt;
                 if (m_DKFallTimer >= 200.0f) {
                     m_DKFallTimer = 0.0f;
                     m_DonkeyKong->SetScale({m_DonkeyKong->GetScale().x, -m_DonkeyKong->GetScale().y});
                 }
-
                 m_DonkeyKong->Update();
             } else {
-                // 當 DK 掉到底部後，自動觸發全黑屏過場
+                // 階段 B：到達位置，切換到暈眩狀態
+                m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::FALLING_STUNNED);
+                // 將暈眩狀態的大金剛放大
+                float stunScale = m_Mario->marioScale * 1.2f;
+                m_DonkeyKong->SetScale({stunScale, stunScale});
+                m_DKFallTimer = 0.0f; // 重置計時器，供接下來的 3 秒使用
+            }
+        } else {
+            // 階段 C：停在原位撥放暈眩動畫 (Donkey_fall1/2) 計時 3 秒
+            m_DKFallTimer += dt;
+            m_DonkeyKong->Update(); 
+
+            if (m_DKFallTimer >= 3000.0f) {
                 if (!m_InTransition) {
                     m_InTransition = true;
                     m_TransitionTimer = 3000.0f;
@@ -1298,6 +1377,7 @@ void App::Update() {
             }
         }
     }
+
 
     // --- 【新增】死亡後續處理：生命值減少與 Game Over 判定 ---
     if (marioState == MarioState::DEAD && m_Mario->IsDeathAnimationDone()) {
@@ -1452,14 +1532,13 @@ void App::Update() {
             && Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
 
             m_Mario->JumpStart();
+            m_JumpOverObstacles.clear(); // [修正] 開始跳躍時才清空舊的越過紀錄
             }
 
         // 1. 先執行移動邏輯 (讓座標更新到這一幀的目標位置)
         if (m_Mario->IsJumping()) {
             m_Mario->Jump();
-        }
-        else if (m_Mario->GetState() == MarioState::FALLING) {
-             // 處理 FALLING 狀態下的位移（這部分原本散落在 Update 各處，建議統一先移動）
+            CheckJumpScore(); // [新增] 檢查跳躍得分
         }
 
         // 2. 移動後，再取得最新位置進行地表偵測
@@ -1480,14 +1559,15 @@ void App::Update() {
         // 採用你發現的邏輯：往下深探 1 像素，確保穩定偵測到當前踩踏的地板
         TileType currentMarioFootTile = m_Map->GetTileAtPosition(marioPos.x, footY - (1.0f * scaleRatio));
         TileType tileCenter = m_Map->GetTileAtPosition(marioPos.x, marioPos.y); // 用中心點檢查
-        TileType tileFoot1 = m_Map->GetTileAtPosition(marioPos.x, marioPos.y - (marioSize.y / 2.0f) + (3.0f * scaleRatio));
+        TileType tileFoot1 = m_Map->GetTileAtPosition(marioPos.x, footY + (3.0f * scaleRatio));
+        bool isInAirState = (m_Mario->GetState() == MarioState::FALLING || m_Mario->GetState() == MarioState::JUMPING);
 
         // [修正] 地面偵測邏輯：加入對傳送帶 Tile 的判定
-        if (currentMarioFootTile == TileType::FLOOR ||
+        if (!isInAirState && (currentMarioFootTile == TileType::FLOOR ||
             currentMarioFootTile == TileType::RIVET ||
             currentMarioFootTile == TileType::CONVEYOR1 ||
             currentMarioFootTile == TileType::CONVEYOR2 ||
-            currentMarioFootTile == TileType::CONVEYOR3) {
+            currentMarioFootTile == TileType::CONVEYOR3)) {
             // 向上找 FLOOR
             for (float dy = 0.0f; dy <= searchRange; dy += 1.0f) {
                 TileType tile = m_Map->GetTileAtPosition(marioPos.x, footY + dy + 1.0f);
@@ -1505,10 +1585,22 @@ void App::Update() {
             }
         } else {
             // 向下找 FLOOR
-            for (float dy = 0.0f; dy <= searchRange; dy += 1.0f) {
+            // 【修正】防止第一關跳躍時意外吸附到上層平台
+            // 只有在第三關（電梯）且瑪利歐正在下墜時，才允許向上 5 像素的緩衝搜尋。
+            // 在第一關（斜坡）等其他關卡，搜尋必須從腳底 (0.0) 開始，且嚴格檢查腳踝處不能在地板內。
+            float startDy = 0.0f;
+            bool isElevatorStage = (m_CurrentStage == Stage::ELEVATORS);
+            if (isElevatorStage && m_Mario->GetState() == MarioState::FALLING) {
+                startDy = -5.0f * scaleRatio;
+            }
+
+            for (float dy = startDy; dy <= searchRange; dy += 1.0f) {
                 TileType tileBelowDY = m_Map->GetTileAtPosition(marioPos.x, footY - dy);
-                if ((tileFoot1 != TileType::FLOOR) &&
-                 (tileBelowDY == TileType::FLOOR ||
+                // 關鍵修正：非電梯關卡時，必須確保腳踝處（tileFoot1）是空氣，防止跳躍時頭部穿進上層地板卻判定為落地
+                bool canLand = (isElevatorStage && isInAirState) || (tileFoot1 != TileType::FLOOR);
+
+                if (canLand &&
+                    (tileBelowDY == TileType::FLOOR ||
                     tileBelowDY == TileType::RIVET ||
                     tileBelowDY == TileType::CONVEYOR1 ||
                     tileBelowDY == TileType::CONVEYOR2 ||
@@ -1519,6 +1611,14 @@ void App::Update() {
                     break;
                 }
             }
+        }
+
+        // 【新增：精準吸附】如果找到了表面，將 targetFootY 修正為該 Tile 的物理頂部，防止浮點數誤差導致抖動
+        if (foundSurface) {
+            auto [gx, gy] = m_Map->GetTileIndexAtPosition(marioPos.x, targetFootY - 1.0f);
+            glm::vec2 tileCenterPos = m_Map->GetTileWorldPosition(gx, gy);
+            float tileTopY = tileCenterPos.y + (m_Map->GetTileHeight() / 2.0f);
+            targetFootY = tileTopY;
         }
 
         // --- [新增] 動態電梯平台碰撞偵測 ---
@@ -1604,8 +1704,23 @@ void App::Update() {
         // 3. 根據偵測結果判定狀態切換
         if (m_Mario->IsJumping()) {
             // [跳躍落地判定]
-            // 這裡除了計時器，也可以加入 Y 軸趨勢判斷
-            if (foundSurface && m_Mario->GetJumpTimer() > g_MarioTotalJumpTime * 0.58f) { // 原 17.5/30 比例
+            if (foundSurface) {
+                // [修正] 只要落地就結算跳躍得分，不再檢查計時器，避免高速平台漏分
+                // [新增] 成功落地時才結算跳躍得分
+                if (!m_JumpOverObstacles.empty()) {
+                    int score = 0;
+                    size_t count = m_JumpOverObstacles.size();
+                    
+                    // 原版獎勵邏輯：1個=100, 2個=300, 3個以上=500
+                    if (count == 1) score = 100;
+                    else if (count == 2) score = 300;
+                    else if (count >= 3) score = 500;
+
+                    m_HUDText->AddScore(score);
+                    SpawnPointVisual(m_Mario->GetPosition(), score);
+                    m_JumpOverObstacles.clear(); // 結算後清空
+                }
+
                 // 偵錯日誌：可以觀察落地時的 Y 座標落差
                 // LOG_DEBUG("Jump Landing Attempt: footY={}, targetFootY={}", footY, targetFootY);
                 m_Mario->Land(targetFootY);
@@ -1626,7 +1741,21 @@ void App::Update() {
             // [落地檢查]
             // 如果在墜落狀態中偵測到表面，則恢復為靜止狀態。
             if (foundSurface && m_Mario->GetState() == MarioState::FALLING) {
+                // [修正] 墜落落地也要結算分數 (例如從平台跳下越過木桶)
+                if (!m_JumpOverObstacles.empty()) {
+                    int score = 0;
+                    size_t count = m_JumpOverObstacles.size();
+                    if (count == 1) score = 100;
+                    else if (count == 2) score = 300;
+                    else if (count >= 3) score = 500;
+
+                    m_HUDText->AddScore(score);
+                    SpawnPointVisual(m_Mario->GetPosition(), score);
+                    m_JumpOverObstacles.clear();
+                }
                 m_Mario->IDLE();
+                // 同步位置
+                m_Mario->SetPosition({marioPos.x, targetFootY + (marioSize.y / 2.0f)});
             }
 
             MarioState state = m_Mario->GetState();
@@ -1853,7 +1982,11 @@ void App::Update() {
         for (auto& fireball : fireballs) {
             if (fireball->GetVisibility()) {
                 glm::vec2 marioSize = m_Mario->GetSize();
-                if (m_Mario->GetState() == MarioState::HAMMERING) marioSize *= 1.8f;
+                if (m_Mario->GetState() == MarioState::HAMMERING) {
+                    marioSize *= 1.8f;
+                } else if (m_Mario->GetState() == MarioState::JUMPING) {
+                    marioSize.y *= 0.7f;
+                }
 
                 const auto firePos = fireball->GetPosition();
                 const auto fireSize = fireball->GetSize();
@@ -1977,8 +2110,9 @@ void App::Update() {
             // 【新增】Stage 2 (L=02) 勝利條件：Mario 站上與 Donkey Kong 同一層
             if (m_CurrentStage == Stage::CONVEYORS) {
                 const auto dkPos = m_DonkeyKong->GetPosition();
-                // Mario 的中心點 Y 座標達到或超過 Donkey Kong 的中心點 Y 座標 (加上一個小容錯值)
-                if (marioPos.y >= dkPos.y - 24.5f) { // -25.0f 是一個小偏移量，用於考慮潛在的高度差異
+                // 只有在非跳躍/墜落狀態下，達到高度才算贏
+                if (marioState != MarioState::JUMPING && marioState != MarioState::FALLING &&
+                    marioPos.y >= dkPos.y - 24.5f) { 
                     m_Mario->Win();
                 }
             }
@@ -1988,10 +2122,13 @@ void App::Update() {
                 const auto marioSize = m_Mario->GetSize();
                 const auto princessSize = m_Princess->GetSize();
 
-                // 公主中心在 Logic Y = 45，我們設定 Mario 必須高於 Logic Y = 100 (即 Engine Y 較大)
-                // 這樣可以避免 Mario 在爬最後一段梯子時就因為 AABB 觸碰到公主而過早觸發勝利
-                float winThresholdY = CoordinateManager::LogicToEngine({0.0f, 100.0f}).y;
-                if (marioPos.y >= winThresholdY &&
+                // 取得公主與馬力歐的腳底 Engine Y 座標
+                float princessFeetY = princessPos.y - (princessSize.y / 2.0f);
+                float marioFeetY = marioPos.y - (marioSize.y / 2.0f);
+
+                // 門檻放寬：只要馬力歐腳底距離公主平台 25 像素以內（約半身高度），在爬梯中也能觸發
+                if (marioState != MarioState::JUMPING && marioState != MarioState::FALLING &&
+                    marioFeetY >= princessFeetY &&
                     std::abs(marioPos.x - princessPos.x) < (marioSize.x + princessSize.x) / 2.0f &&
                     std::abs(marioPos.y - princessPos.y) < (marioSize.y + princessSize.y) / 2.0f) {
                     m_Mario->Win();
@@ -2004,10 +2141,22 @@ void App::Update() {
                 const auto princessSize = m_Princess->GetSize();
                 const auto marioHalfSize = marioSize / 2.0f;
                 const auto princessHalfSize = princessSize / 2.0f;
-                if (std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
+
+                // 【修正】針對第一關增加高度門檻限制，防止在爬最後一段梯子途中就提早觸發過關
+                bool heightOk = true;
+                if (m_CurrentStage == Stage::BARRELS) {
+                    float princessFeetY = princessPos.y - princessHalfSize.y;
+                    float marioFeetY = marioPos.y - marioHalfSize.y;
+                    
+                    // 只要不是在跳躍或墜落，且爬到接近頂端（腳底在平台下 25 像素內）即可觸發
+                    heightOk = (marioFeetY >= princessFeetY - 25.0f) && 
+                               (marioState != MarioState::JUMPING && marioState != MarioState::FALLING);
+                }
+
+                if (heightOk &&
+                    std::abs(marioPos.x - princessPos.x) < (marioHalfSize.x + princessHalfSize.x) &&
                     std::abs(marioPos.y - princessPos.y) < (marioHalfSize.y + princessHalfSize.y)) {
-                    // 移除硬編碼的高度門檻，僅靠 AABB 碰撞判定即可觸發勝利
-                m_Mario->Win();
+                    m_Mario->Win();
                 }
             }
         }
