@@ -2,6 +2,7 @@
 #include "Util/Time.hpp"      // 用來取得每一幀的時間，進行計時
 #include "Util/Animation.hpp" // 需要透過它來手動控制圖片的幀數
 #include <cstdlib>            // 用於 rand() 隨機函式的實作
+#include <algorithm>          // 用於 std::max
 
 // 定義搥胸循環序列
 static const int chestSequence[] = {0, 0, 0, 0, 2, 1, 2, 0};
@@ -29,11 +30,7 @@ DonkeyKong::DonkeyKong()
     Stop();
 
     // 步驟二：初始化，第一次進入「環顧狀態 (看左看右看前)」需要隨機搥胸多久
-#if 1 //sdbg
     m_NextLookTime = GetRandomChestBeatingDuration();
-#else
-    m_NextLookTime = 1;
-#endif
 
     // 初始化第一幀為序列的第一個動作
     m_CurrentChestFrame = 0;
@@ -47,11 +44,12 @@ DonkeyKong::DonkeyKong()
 // 回傳 1000 到 5000 的隨機毫秒 (1~5 秒)
 // =============================================
 float DonkeyKong::GetRandomChestBeatingDuration() {
-#if 1 //sdbg
-    return 1000.0f + static_cast<float>(rand() % 4001);
-#else
-     return 1000.0f + static_cast<float>(rand() % 1001);
-#endif
+    // 根據等級動態調整搥胸時間 (難度越高，轉頭速度越快)
+    // Level 1: 1000ms + (0~4000ms) = 1000~5000ms
+    // Level 5: 1000ms + (0~500ms) = 1000~1500ms
+    // 使用線性遞減公式，並確保最小值不低於 1000ms 的隨機區間
+    int range = (m_Level < 5) ? 4000 : 500;
+    return 1000.0f + static_cast<float>(std::rand() % (range + 1));
 }
 
 // =============================================
@@ -123,7 +121,8 @@ void DonkeyKong::Update() {
         m_ChestTimer += dt; // 用來切換搥胸圖片的計時器
 
         // 每隔 500ms 依照指定序列 {0, 0, 0, 0, 2, 1, 2, 0} 切換圖片
-        if (m_ChestTimer >= 450.0f) {
+        float ChestTimeLimit = (m_Level < 5) ? 450.0f : 250;
+        if (m_ChestTimer >= ChestTimeLimit) {
             m_ChestTimer = 0.0f; // 重置內部的小計時器
 
             // 在 0~7 之間循環索引
@@ -189,11 +188,9 @@ void DonkeyKong::Update() {
                 anim->SetCurrentFrame(5);
 
                 // --- 核心互動：當向右看時，觸發產出下一個障礙物 (酒桶) ---
-#if 1 // TODO
                 if (m_BarrelSpawnCallback) {
                      m_BarrelSpawnCallback();
                 }
-#endif
             }
             else if (m_LookIndex >= 3) {
                 // 已經看完三個方向了，要把狀態切換回原本的搥胸狀態

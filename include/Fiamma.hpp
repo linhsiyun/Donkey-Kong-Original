@@ -32,6 +32,9 @@ public:
     enum class VerticalDirection { UP, DOWN };
     void SetState(State state) { m_State = state; }
 
+    // 根據關卡設定火球樣式 (Stage 4 使用 fiamma5, 6)
+    void SetStageStyle(bool isRivet);
+
 private:
     State m_State = State::FALLING;
     Direction m_Direction = Direction::RIGHT;

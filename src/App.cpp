@@ -345,10 +345,16 @@ void App::CheckJumpScore() {
     if (m_Fireball && m_Fireball->GetVisibility()) {
         process(m_Fireball.get(), m_Fireball->GetPosition(), m_Fireball->GetSize());
     }
-    if (m_Fireball2 && m_Fireball2->GetVisibility()) { 
+    if (m_Fireball2 && m_Fireball2->GetVisibility()) {
         process(m_Fireball2.get(), m_Fireball2->GetPosition(), m_Fireball2->GetSize());
     }
-    for (auto& p : m_CementPans) { 
+    if (m_Fireball3 && m_Fireball3->GetVisibility()) {
+        process(m_Fireball3.get(), m_Fireball3->GetPosition(), m_Fireball3->GetSize());
+    }
+    if (m_Fireball4 && m_Fireball4->GetVisibility()) {
+        process(m_Fireball4.get(), m_Fireball4->GetPosition(), m_Fireball4->GetSize());
+    }
+    for (auto& p : m_CementPans) {
         process(p.get(), p->GetPosition(), p->GetSize());
     }
 }
@@ -467,6 +473,7 @@ void App::LoadLevel(int level) {
     if (m_DonkeyKong) {
         // 還原 DK 的縮放比例（恢復正向並重設尺寸）
         m_DonkeyKong->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
+        m_DonkeyKong->SetLevel(level);
     }
 
     // 重置 Stage 4 特有的邏輯標記 (移至開頭以確保不論從哪一關離開，狀態都乾淨)
@@ -489,6 +496,15 @@ void App::LoadLevel(int level) {
     m_Mario->Reset();
     m_Fireball->SetVisible(false);
     m_Fireball2->SetVisible(false);
+    m_Fireball3->SetVisible(false);
+    m_Fireball4->SetVisible(false);
+
+    // 根據是否為 Rivets 關卡更新火球外觀
+    bool isRivetStage = (m_CurrentStage == App::Stage::RIVETS);
+    m_Fireball->SetStageStyle(isRivetStage);
+    m_Fireball2->SetStageStyle(isRivetStage);
+    m_Fireball3->SetStageStyle(isRivetStage);
+    m_Fireball4->SetStageStyle(isRivetStage);
 
     if (m_HammerItem) m_HammerItem->SetVisible(true);
     if (m_HammerItem2) m_HammerItem2->SetVisible(true);
@@ -568,6 +584,12 @@ void App::LoadLevel(int level) {
 
         // 7. 加入渲染器統一繪製
         m_Renderer.AddChild(m_OilBarrel);
+
+        if (m_CurrentLevel > 1) { // add Fireball2
+            m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({620.0f, 300.0f}));;
+            m_Fireball2->SetVisible(true);
+            m_Fireball2->SetState(Fiamma::State::FALLING);
+        }
 
     } else if (m_CurrentStage == App::Stage::CONVEYORS) {
         // 第二關 DK 會左右移動且只會搥胸
@@ -917,9 +939,17 @@ void App::LoadLevel(int level) {
         m_Fireball->SetVisible(true);
         m_Fireball->SetState(Fiamma::State::FALLING);
 
-        m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({250.0f, 250.0f}));;
+        m_Fireball2->SetPosition(CoordinateManager::LogicToEngine({250.0f, 350.0f}));;
         m_Fireball2->SetVisible(true);
         m_Fireball2->SetState(Fiamma::State::FALLING);
+
+        m_Fireball3->SetPosition(CoordinateManager::LogicToEngine({650.0f, 450.0f}));
+        m_Fireball3->SetVisible(true);
+        m_Fireball3->SetState(Fiamma::State::FALLING);
+
+        m_Fireball4->SetPosition(CoordinateManager::LogicToEngine({250.0f, 250.0f}));
+        m_Fireball4->SetVisible(true);
+        m_Fireball4->SetState(Fiamma::State::FALLING);
 
         const auto& data = m_Map->GetLevelData();
         for (int y = 0; y < data.GetHeight(); ++y) {
@@ -992,6 +1022,14 @@ void App::Start() {
     m_Fireball2 = std::make_shared<Fiamma>();
     m_Fireball2->SetMap(m_Map);
     m_Renderer.AddChild(m_Fireball2);
+
+    m_Fireball3 = std::make_shared<Fiamma>();
+    m_Fireball3->SetMap(m_Map);
+    m_Renderer.AddChild(m_Fireball3);
+
+    m_Fireball4 = std::make_shared<Fiamma>();
+    m_Fireball4->SetMap(m_Map);
+    m_Renderer.AddChild(m_Fireball4);
 
     // 建構地面上的槌子道具並放在右側
     m_HammerItem = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
@@ -1367,7 +1405,7 @@ void App::Update() {
         } else {
             // 階段 C：停在原位撥放暈眩動畫 (Donkey_fall1/2) 計時 3 秒
             m_DKFallTimer += dt;
-            m_DonkeyKong->Update(); 
+            m_DonkeyKong->Update();
 
             if (m_DKFallTimer >= 3000.0f) {
                 if (!m_InTransition) {
@@ -1710,7 +1748,7 @@ void App::Update() {
                 if (!m_JumpOverObstacles.empty()) {
                     int score = 0;
                     size_t count = m_JumpOverObstacles.size();
-                    
+
                     // 原版獎勵邏輯：1個=100, 2個=300, 3個以上=500
                     if (count == 1) score = 100;
                     else if (count == 2) score = 300;
@@ -1913,7 +1951,7 @@ void App::Update() {
                     m_Fireball->SetPosition({fuelPos.x, fuelPos.y + 30.0f});
                     m_Fireball->SetState(Fiamma::State::FALLING); //
                     m_FireballJumping = true;      // 啟用跳躍狀態
-                    m_FireballVelocityY = 250.0f;  // 增加初速度以抵銷 Fiamma 內部的下墜拉力
+                    m_FireballVelocityY = 180.0f;  // 降低初速度以縮短跳躍高度
                     m_FireballVelocityX = (std::rand() % 2 == 0 ? 50.0f : -50.0f); // 隨機向左或向右跳
                 }
             }
@@ -1927,58 +1965,68 @@ void App::Update() {
                     m_Fireball2->SetPosition({fuelPos.x, fuelPos.y + 30.0f});
                     m_Fireball2->SetState(Fiamma::State::FALLING);
                     m_FireballJumping2 = true;      // 啟用跳躍狀態
-                    m_FireballVelocityY2 = 250.0f;  // 給予向上的初速度
+                    m_FireballVelocityY2 = 180.0f;  // 降低初速度以縮短跳躍高度
                     m_FireballVelocityX2 = (std::rand() % 2 == 0 ? 50.0f : -50.0f); // 隨機向左或向右跳
                 }
             }
         }
 
-        if (m_Fireball->GetVisibility()) {
-            if (m_FireballJumping) {
-                // 自訂火球拋物線跳躍邏輯
-                float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
-                glm::vec2 fPos = m_Fireball->GetPosition();
+        // 更新火球移動邏輯
+        auto fireballsToUpdate = {m_Fireball, m_Fireball2, m_Fireball3, m_Fireball4};
 
-                fPos.y += m_FireballVelocityY * dtSec;    // 根據速度更新 Y 座標
-                m_FireballVelocityY -= 300.0f * dtSec;    // 模擬重力往下掉
+        if (m_CurrentStage == App::Stage::CONVEYORS) {
+            // Custom jumping logic for m_Fireball
+            if (m_Fireball->GetVisibility()) {
+                if (m_FireballJumping) {
+                    float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
+                    glm::vec2 fPos = m_Fireball->GetPosition();
 
-                // 跳躍時給予些微隨機水平向右或向左偏移來模仿彈出
-                fPos.x += m_FireballVelocityX * dtSec;
+                    fPos.y += m_FireballVelocityY * dtSec;
+                    m_FireballVelocityY -= 300.0f * dtSec;
+                    fPos.x += m_FireballVelocityX * dtSec;
 
-                // 將計算後的座標設定回去，否則 math 運算只停留在區域變數中
-                m_Fireball->SetPosition(fPos);
+                    m_Fireball->SetPosition(fPos);
 
-                // 落地檢查：當 Y 速度轉負（下墜中）且腳下碰到地板時，結束自定義跳躍邏輯
-                float footY = fPos.y - (m_Fireball->GetSize().y / 2.0f);
-                if (m_FireballVelocityY < 0 && m_Map->GetTileAtPosition(fPos.x, footY - 2.0f) == TileType::FLOOR) {
-                    m_FireballJumping = false;
+                    float footY = fPos.y - (m_Fireball->GetSize().y / 2.0f);
+                    if (m_FireballVelocityY < 0 && m_Map->GetTileAtPosition(fPos.x, footY - 2.0f) == TileType::FLOOR) {
+                        m_FireballJumping = false;
+                    }
+                } else {
+                    m_Fireball->Update(); // Use Fiamma's default update if not jumping
                 }
             }
-            // 不論是否正在跳躍，都必須更新 Fiamma 以驅動動畫與落地後的走路邏輯
-            m_Fireball->Update();
-        }
 
-        if (m_Fireball2->GetVisibility()) {
-            if (m_FireballJumping2) {
-                float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
-                glm::vec2 fPos = m_Fireball2->GetPosition();
+            // Custom jumping logic for m_Fireball2
+            if (m_Fireball2->GetVisibility()) {
+                if (m_FireballJumping2) {
+                    float dtSec = static_cast<float>(Util::Time::GetDeltaTimeMs()) / 1000.0f;
+                    glm::vec2 fPos = m_Fireball2->GetPosition();
 
-                fPos.y += m_FireballVelocityY2 * dtSec;
-                m_FireballVelocityY2 -= 300.0f * dtSec;
-                fPos.x += m_FireballVelocityX2 * dtSec;
+                    fPos.y += m_FireballVelocityY2 * dtSec;
+                    m_FireballVelocityY2 -= 300.0f * dtSec;
+                    fPos.x += m_FireballVelocityX2 * dtSec;
 
-                m_Fireball2->SetPosition(fPos);
+                    m_Fireball2->SetPosition(fPos);
 
-                float footY = fPos.y - (m_Fireball2->GetSize().y / 2.0f);
-                if (m_FireballVelocityY2 < 0 && m_Map->GetTileAtPosition(fPos.x, footY - 2.0f) == TileType::FLOOR) {
-                    m_FireballJumping2 = false;
+                    float footY = fPos.y - (m_Fireball2->GetSize().y / 2.0f);
+                    if (m_FireballVelocityY2 < 0 && m_Map->GetTileAtPosition(fPos.x, footY - 2.0f) == TileType::FLOOR) {
+                        m_FireballJumping2 = false;
+                    }
+                } else {
+                    m_Fireball2->Update(); // Use Fiamma's default update if not jumping
                 }
             }
-            m_Fireball2->Update();
+        } else { // For stages other than CONVEYORS, or if not in custom jumping state
+            // Update all fireballs using their default Fiamma::Update() logic
+            for (auto& fireball : fireballsToUpdate) {
+                if (fireball->GetVisibility()) {
+                    fireball->Update();
+                }
+            }
         }
 
         // 5. 碰撞偵測：Mario 與火球
-        auto fireballs = {m_Fireball, m_Fireball2};
+        auto fireballs = fireballsToUpdate; // Use the same list for collision
         for (auto& fireball : fireballs) {
             if (fireball->GetVisibility()) {
                 glm::vec2 marioSize = m_Mario->GetSize();
@@ -2112,7 +2160,7 @@ void App::Update() {
                 const auto dkPos = m_DonkeyKong->GetPosition();
                 // 只有在非跳躍/墜落狀態下，達到高度才算贏
                 if (marioState != MarioState::JUMPING && marioState != MarioState::FALLING &&
-                    marioPos.y >= dkPos.y - 24.5f) { 
+                    marioPos.y >= dkPos.y - 24.5f) {
                     m_Mario->Win();
                 }
             }
@@ -2147,9 +2195,9 @@ void App::Update() {
                 if (m_CurrentStage == Stage::BARRELS) {
                     float princessFeetY = princessPos.y - princessHalfSize.y;
                     float marioFeetY = marioPos.y - marioHalfSize.y;
-                    
+
                     // 只要不是在跳躍或墜落，且爬到接近頂端（腳底在平台下 25 像素內）即可觸發
-                    heightOk = (marioFeetY >= princessFeetY - 25.0f) && 
+                    heightOk = (marioFeetY >= princessFeetY - 25.0f) &&
                                (marioState != MarioState::JUMPING && marioState != MarioState::FALLING);
                 }
 

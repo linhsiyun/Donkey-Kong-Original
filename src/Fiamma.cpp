@@ -18,6 +18,21 @@ Fiamma::Fiamma() : AnimatedCharacter({
     m_State = State::FALLING;
 }
 
+void Fiamma::SetStageStyle(bool isRivet) {
+    std::vector<std::string> paths;
+    if (isRivet) {
+        // Stage 4: Foxfire (速度較快)
+        paths = { RESOURCE_DIR"/Images/foxfire1.png", RESOURCE_DIR"/Images/foxfire2.png" };
+        m_MoveSpeed = 100.0f;
+    } else {
+        // 其他關卡: Fireball (標準速度)
+        paths = { RESOURCE_DIR"/Images/fiamma1.png", RESOURCE_DIR"/Images/fiamma2.png" };
+        m_MoveSpeed = 80.0f;
+    }
+    // 建立新的 Animation 並替換 Drawable，保持 200ms 間隔與自動播放
+    m_Drawable = std::make_shared<Util::Animation>(paths, true, 200, true, 0);
+}
+
 void Fiamma::Update() {
     float dtMs = static_cast<float>(Util::Time::GetDeltaTimeMs());
     float dtSec = dtMs / 1000.0f;
@@ -67,7 +82,7 @@ void Fiamma::Update() {
                     isOnLadderX = true; // [修正] 標記正在梯子範圍內
                     if (centerCol != m_LastCheckedLadderCol) {
                         m_LastCheckedLadderCol = centerCol;
-                        if ((std::rand() % 100) < 25) { 
+                        if ((std::rand() % 100) < 25) {
                             m_State = State::CLIMBING;
                             m_ClimbDir = VerticalDirection::UP;
                             currentPos.x = gridCenter.x;
@@ -79,7 +94,7 @@ void Fiamma::Update() {
             // C. 碰到地板下方有梯子，機率向下爬
             else {
                 TileType tileBelow = m_Map->GetLevelData().GetTile(col, baseRow + 10);
-         
+
                 if (tileBelow == TileType::LADDER || tileBelow == TileType::BROKEN_LADDER) {
                     auto [centerCol, centerRow] = m_Map->GetTileIndexAtPosition(currentPos.x, currentPos.y);
                     glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(centerCol, centerRow);
@@ -87,8 +102,8 @@ void Fiamma::Update() {
                     if (std::abs(currentPos.x - gridCenter.x) < (8.0f * scaleRatio)) {
                         isOnLadderX = true; // [修正] 標記正在梯子範圍內
                         if (centerCol != m_LastCheckedLadderCol) {
-                            m_LastCheckedLadderCol = centerCol; 
-                            if ((std::rand() % 100) < 25) { 
+                            m_LastCheckedLadderCol = centerCol;
+                            if ((std::rand() % 100) < 25) {
                                 m_State = State::CLIMBING;
                                 m_ClimbDir = VerticalDirection::DOWN;
                                 currentPos.x = gridCenter.x;
@@ -188,7 +203,7 @@ void Fiamma::Update() {
             };
 
             int startRow = static_cast<int>(m_RandomTurnTimer);
-            bool hasMovedEnough = std::abs(startRow - footRow) >= 10; 
+            bool hasMovedEnough = std::abs(startRow - footRow) >= 10;
             bool shouldStopClimbing = false;
             int snapRow = footRow;
 
@@ -212,7 +227,7 @@ void Fiamma::Update() {
                 m_LastCheckedLadderCol = footCol;
                 m_Direction = (std::rand() % 2 == 0) ? Direction::LEFT : Direction::RIGHT;
                 m_RandomTurnTimer = 1.0f + (std::rand() % 200) / 100.0f;
-                
+
                 // 根據 snapRow 精準對齊地板表面
                 glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(footCol, snapRow);
                 currentPos.y = gridCenter.y + (m_Map->GetTileHeight() / 2.0f) + (size.y / 2.0f);

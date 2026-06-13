@@ -80,6 +80,8 @@ private:
     std::shared_ptr<Mario> m_Mario;
     std::shared_ptr<Fiamma> m_Fireball;
     std::shared_ptr<Fiamma> m_Fireball2;
+    std::shared_ptr<Fiamma> m_Fireball3; // 新增火球 3
+    std::shared_ptr<Fiamma> m_Fireball4; // 新增火球 4
     std::shared_ptr<HUDManager> m_HUDText;
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
     std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
