@@ -1,6 +1,7 @@
 #include "HUDManager.hpp"
 #include <iomanip>
 #include <sstream>
+#include <fstream>
 #include "Character.hpp"
 #include "config.hpp"
 #include "CoordinateManager.hpp"
@@ -18,7 +19,17 @@ HUDManager::HUDManager() {
     // --- 這裡只設定一次 ---
     // 初始化分數，確保變數有初始值
     currentScore = 0;
-    highScore = 0;
+    m_ExtraLifeAwarded = false;
+
+    // [修正] 歷史最高分應在物件建構時從檔案載入一次
+    // 這樣可以確保程式開啟時即讀取到上次存檔的紀錄
+    std::ifstream file(RESOURCE_DIR "/highscore.txt");
+    if (file.is_open()) {
+        file >> highScore;
+        file.close();
+    } else {
+        highScore = 0;
+    }
 
     const std::string fontPath = RESOURCE_DIR"/Fonts/PressStart2P-Regular.ttf";
     //const int fontSize = 16;
@@ -61,51 +72,25 @@ HUDManager::HUDManager() {
     for (int i = 0; i < 3; ++i) {
         auto lifeIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Walk0.png");
         lifeIcon->SetZIndex(100);
-        lifeIcon->SetScale({1.0f, 1.0f}); // 縮小比例
+        lifeIcon->SetScale({1.5f, 1.5f}); // 放大生命圖示比例
 
-        // 絕對邏輯座標 X=-110 起始，每個間距 22；Y 統一為 75
-        float logicX = -110.0f + (i * 22.0f);
+        // 絕對邏輯座標 X=-110 起始，增加間距至 30 以對應放大的圖示；Y 統一為 75
+        float logicX = -110.0f + (i * 30.0f);
         float logicY = 75.0f;
         lifeIcon->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
 
         lifeObjects.push_back(lifeIcon);
     }
 
-    // 在生命圖示下方放置 Hammer 圖示與初始值 0
-    hammerIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Hammer.png");
-    hammerIcon->SetZIndex(100);
-    hammerIcon->SetScale({1.5f, 1.5f}); // 縮小比例
-    hammerIcon->SetPosition(CoordinateManager::LogicToEngine({-110.0f, 100.0f})); // 對齊左側 X=-110，往下排 Y=100
-
-    hammerCountText = std::make_shared<Util::Text>(fontPath, 16, " 0", white);
-    hammerCountObject = std::make_shared<Util::GameObject>();
-    hammerCountObject->SetDrawable(hammerCountText);
-    hammerCountObject->SetZIndex(100);
-    hammerCountObject->m_Transform.translation = CoordinateManager::LogicToEngine({-70.0f, 100.0f}); // 文字靠右 X=-70
-    hammerCountObject->SetVisible(true);
-
-    // 在 Hammer 下方放置 Barrel 圖示與初始值 0
-    barrelIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Barrel1.png");
-    barrelIcon->SetZIndex(100);
-    barrelIcon->SetScale({1.0f, 1.0f}); // 縮小比例
-    barrelIcon->SetPosition(CoordinateManager::LogicToEngine({-110.0f, 125.0f})); // 對齊左側 X=-110，再往下排 Y=125
-
-    barrelCountText = std::make_shared<Util::Text>(fontPath, 16, " 0", white);
-    barrelCountObject = std::make_shared<Util::GameObject>();
-    barrelCountObject->SetDrawable(barrelCountText);
-    barrelCountObject->SetZIndex(100);
-    barrelCountObject->m_Transform.translation = CoordinateManager::LogicToEngine({-70.0f, 125.0f}); // 文字靠右 X=-70
-    barrelCountObject->SetVisible(true);
-
     // --- 初始化 "HIGH SCORE" 圖片圖標 ---
     m_HighScoreNotifyIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/high_score.png");
     m_HighScoreNotifyIcon->SetZIndex(100); // 提高層級，確保在所有文字上方
-    
+
     // 【參考 PointVisual】：大幅增加縮放倍率，使其在畫面上清晰可見
-    m_HighScoreNotifyIcon->SetScale({4.0f, 4.0f}); 
-    
+    m_HighScoreNotifyIcon->SetScale({2.0f, 2.0f});
+
     // 初始座標先設在分數旁邊
-    m_HighScoreNotifyIcon->SetPosition(CoordinateManager::LogicToEngine({80.0f, 25.0f}));
+    m_HighScoreNotifyIcon->SetPosition(CoordinateManager::LogicToEngine({80.0f, 28.0f}));
     m_HighScoreNotifyIcon->SetVisible(false);
 }
 
@@ -113,13 +98,15 @@ void HUDManager::Init() {
     currentScore = 0;
     scoreText->SetText(FormatInt(currentScore, 6));
 
+    m_ExtraLifeAwarded = false; // 重置獎勵標記
+
     // 關鍵：重置時只更新文字顯示，但不將 highScore 歸零
     highScoreText->SetText(FormatInt(highScore, 6));
 
     // 【新增】初始化生命值顯示
     mLives = 3;
-    for (auto& life : lifeObjects) {
-        life->SetVisible(true);
+    for (int i = 0; i < (int)lifeObjects.size(); ++i) {
+        lifeObjects[i]->SetVisible(i < 3); // 確保只顯示初始的 3 條命
     }
 
     ResetBonus(5000);
@@ -131,6 +118,7 @@ void HUDManager::Init() {
 }
 
 void HUDManager::AddToRenderer(Util::Renderer& renderer) {
+    m_Renderer = &renderer; // 取得並儲存渲染器，供後續 AddLife 使用
     // 將包裝後的 GameObject 加入渲染器，而非 Drawable 本身
     renderer.AddChild(scoreObject);
     renderer.AddChild(highScoreObject);
@@ -141,12 +129,6 @@ void HUDManager::AddToRenderer(Util::Renderer& renderer) {
     for (auto& life : lifeObjects) {
         renderer.AddChild(life);
     }
-
-    // 加入新的圖示與文字到渲染器
-    renderer.AddChild(hammerIcon);
-    renderer.AddChild(hammerCountObject);
-    renderer.AddChild(barrelIcon);
-    renderer.AddChild(barrelCountObject);
 
     // 加入提醒文字到渲染器
     renderer.AddChild(m_HighScoreNotifyIcon);
@@ -181,6 +163,13 @@ void HUDManager::AddScore(int points) {
     currentScore += points;
     scoreText->SetText(FormatInt(currentScore, 6));
 
+    // --- 獎勵生命 (1UP) 檢查 ---
+    if (!m_ExtraLifeAwarded && currentScore >= 7000) {
+        m_ExtraLifeAwarded = true;
+        AddLife();
+        LOG_INFO("Extra Life Awarded! Score reached 7000.");
+    }
+
     if (currentScore > highScore) {
         // 當分數超越歷史最高紀錄時觸發（若持續得分，則重置三秒計時，讓圖標維持顯示）
         if (oldScore <= highScore || m_IsShowingHighScoreIcon) {
@@ -191,12 +180,30 @@ void HUDManager::AddScore(int points) {
             // 【動態對齊】：確保圖片位置跟隨最高分數文字的位置，並向右偏移
             glm::vec2 scorePos = highScoreObject->m_Transform.translation;
             m_HighScoreNotifyIcon->SetPosition({scorePos.x + 130.0f, scorePos.y});
-            
+
             m_HighScoreNotifyIcon->SetVisible(true);
         }
         highScore = currentScore;
         highScoreText->SetText(FormatInt(highScore, 6));
+        // [修正] 每當超越最高分時立即存檔，避免玩家直接關閉程式導致紀錄沒存到
+        SaveHighScore();
     }
+}
+
+void HUDManager::SaveHighScore() {
+    std::ofstream file(RESOURCE_DIR "/highscore.txt");
+    if (file.is_open()) {
+        file << highScore;
+        file.close();
+        LOG_INFO("High score saved: {}", highScore);
+    }
+}
+
+void HUDManager::ResetHighScore() {
+    highScore = 0;
+    highScoreText->SetText(FormatInt(highScore, 6));
+    SaveHighScore();
+    LOG_INFO("High Score has been reset to 0.");
 }
 
 void HUDManager::ResetBonus(int amount) {
@@ -208,6 +215,28 @@ void HUDManager::ResetBonus(int amount) {
 void HUDManager::SetLevel(int level) {
     this->level = level;
     levelText->SetText("L=" + FormatInt(level, 2));
+}
+
+void HUDManager::AddLife() {
+    mLives++;
+
+    // 如果目前生命數超過了現有的圖示物件數量，則需要建立新的
+    if (mLives > (int)lifeObjects.size()) {
+        auto lifeIcon = std::make_shared<Character>(RESOURCE_DIR"/Images/Walk0.png");
+        lifeIcon->SetZIndex(100);
+        lifeIcon->SetScale({1.5f, 1.5f});
+
+        // 計算新圖示的位置 (依序向右排列)
+        float logicX = -110.0f + ((mLives - 1) * 30.0f);
+        float logicY = 75.0f;
+        lifeIcon->SetPosition(CoordinateManager::LogicToEngine({logicX, logicY}));
+
+        lifeObjects.push_back(lifeIcon);
+        if (m_Renderer) m_Renderer->AddChild(lifeIcon);
+    } else {
+        // 否則只需將隱藏的圖示重新顯示
+        lifeObjects[mLives - 1]->SetVisible(true);
+    }
 }
 
 // 【新增】扣除生命值並隱藏對應圖示

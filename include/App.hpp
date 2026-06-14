@@ -7,6 +7,7 @@
 
 #include "Util/GameObject.hpp"
 #include <map>
+#include <set>
 
 //#include "Character.hpp"
 //not used, #include "Util/Text.hpp"
@@ -65,6 +66,8 @@ private:
 
     void TriggerSmash(glm::vec2 position, int score);
 
+    void CheckJumpScore();
+
     Util::Renderer m_Renderer;
     std::shared_ptr<Map> m_Map;
 
@@ -77,6 +80,8 @@ private:
     std::shared_ptr<Mario> m_Mario;
     std::shared_ptr<Fiamma> m_Fireball;
     std::shared_ptr<Fiamma> m_Fireball2;
+    std::shared_ptr<Fiamma> m_Fireball3; // 新增火球 3
+    std::shared_ptr<Fiamma> m_Fireball4; // 新增火球 4
     std::shared_ptr<HUDManager> m_HUDText;
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
     std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
@@ -119,6 +124,8 @@ private:
     float m_DKFallTimer = 0.0f; // 【新增】DK 下墜旋轉計時器
     int m_RivetCount = 0;       // 【新增】剩餘插銷數量
     bool m_IsGameOver = false;  // 【新增】是否遊戲結束
+
+    std::set<void*> m_JumpOverObstacles; // 【新增】紀錄單次跳躍中已得分的障礙物
 
     // 【新增】紀錄 Level 4 的插銷視覺物件，Key 為網格座標 {x, y}
     std::map<std::pair<int, int>, std::shared_ptr<Character>> m_RivetVisuals;

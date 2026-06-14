@@ -33,9 +33,9 @@
       當玩家過關時，畫面上剩餘的 Bonus 數值會直接加進 Current Score。
       失敗條件：如果 Bonus 倒數到 0，玩家會立即損失一條生命。
 
-    4. 獎勵生命 (Extra Life)
-       標準規則：當總分達到 7,000 分 時，玩家獲得額外的一條生命（1UP）。
-       之後是否還有獎勵（如每 20,000 分）可由你在程式中自行設定。
+   4. 獎勵生命 (Extra Life)
+      標準規則：當總分達到 7,000 分 時，玩家獲得額外的一條生命（1UP）。
+      之後是否還有獎勵（如每 20,000 分）可由你在程式中自行設定。
  */
 
 
@@ -75,9 +75,12 @@ private:
     std::shared_ptr<Util::GameObject> barrelCountObject;
 
     // --- 高分提醒相關成員 ---
-    std::shared_ptr<Character> m_HighScoreNotifyIcon; 
+    std::shared_ptr<Character> m_HighScoreNotifyIcon;
     bool m_IsShowingHighScoreIcon = false;
     float m_HighScoreIconTimer = 0.0f;
+
+    bool m_ExtraLifeAwarded = false;      // 紀錄是否已領取過 7,000 分的獎勵生命
+    Util::Renderer* m_Renderer = nullptr; // 儲存渲染器指標，以便動態增加生命圖示
 
     float bonusTimer = 0.0f; // 用來計時 1 秒扣一次分數
 
@@ -92,10 +95,13 @@ public:
 
     // 提供 API 給其他物件呼叫
     void AddScore(int points);
+    void AddLife();            // 增加生命與更新顯示
     void ResetBonus(int amount = 5000);
     void DecreaseLife();       // 【新增】扣除生命
+    void SaveHighScore();      // 【新增】宣告存檔函式
     int GetLives() const { return mLives; } // 【新增】取得剩餘生命
     int GetBonus() { return bonusTime; }
     void SetLevel(int level);
+    void ResetHighScore(); //重置最高分
 };
 #endif // HUDMANAGER_HPP

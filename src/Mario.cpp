@@ -284,8 +284,10 @@ void Mario::Jump() {
     float yOffset = 4.0f * jumpHeight * progress * (1.0f - progress);
     m_Position.y = m_JumpStartPosition.y + yOffset;
 
-    if (m_Direction == MarioDIR::LEFT) m_Position.x -= movingStep;
-    else if (m_Direction == MarioDIR::RIGHT) m_Position.x += movingStep;
+    // 增加跳躍時的水平移動速度，讓跳躍距離更長
+    float jumpHorizontalMultiplier = 1.6f; 
+    if (m_Direction == MarioDIR::LEFT) m_Position.x -= movingStep * jumpHorizontalMultiplier;
+    else if (m_Direction == MarioDIR::RIGHT) m_Position.x += movingStep * jumpHorizontalMultiplier;
 
     SetState(MarioState::JUMPING);
 }
@@ -309,6 +311,12 @@ void Mario::Land(float floorY) {
 // WALKING/JUMPING -> FALLING
 void Mario::Fall(){
     if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
+
+    // 如果正在拿槌子，我們不切換狀態到 FALLING，但要執行下墜位移
+    if (m_CurrentState == MarioState::HAMMERING) {
+        m_Position.y -= movingStep * 1.5f;
+        return;
+    }
 
     if (m_CurrentState != MarioState::FALLING) {
         LOG_DEBUG("FALLING");

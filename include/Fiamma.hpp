@@ -14,13 +14,13 @@ public:
     // 每幀更新：處理移動邏輯與邊界偵測
     void Update();
 
-    // 簡單的 AABB 碰撞偵測，傳入對方的座標與尺寸
+    // 簡單的 AABB 碰撞偵測，縮減火球碰撞範圍使其更公平
     [[nodiscard]] bool IfCollides(const glm::vec2& otherPos, const glm::vec2& otherSize) const {
-        const auto self_half_size = GetSize() / 2.0f;
+        // 將火球的碰撞有效範圍縮小為圖片的 60%
+        const auto self_half_size = (GetSize() * 0.6f) / 2.0f;
         const auto other_half_size = otherSize / 2.0f;
         const auto& self_pos = GetPosition();
 
-        // 檢查 X 軸與 Y 軸是否重疊
         return std::abs(self_pos.x - otherPos.x) < (self_half_size.x + other_half_size.x) &&
                std::abs(self_pos.y - otherPos.y) < (self_half_size.y + other_half_size.y);
     }
@@ -31,6 +31,9 @@ public:
     enum class Direction { LEFT, RIGHT };
     enum class VerticalDirection { UP, DOWN };
     void SetState(State state) { m_State = state; }
+
+    // 根據關卡設定火球樣式 (Stage 4 使用 fiamma5, 6)
+    void SetStageStyle(bool isRivet);
 
 private:
     State m_State = State::FALLING;
