@@ -410,9 +410,16 @@ void App::LoadLevel(int level) {
         if (!m_OpeningScene) {
             m_OpeningScene = std::make_shared<OpeningScene>(m_DonkeyKong, m_Map, m_Mario, m_Princess);
         }
-        m_IsOpeningSequence = true;
+        if (!m_OpeningScene->IsFinished()) {
+            m_IsOpeningSequence = true;
+            m_LevelStarted = false;
+        } else {
+            m_IsOpeningSequence = false;
+            m_LevelStarted = true;
+        }
     } else {
         m_IsOpeningSequence = false;
+        m_LevelStarted = true;
     }
 
     // 根據關卡動態調整跳躍性能：所有關卡都使用 30.0f
@@ -546,17 +553,17 @@ void App::LoadLevel(int level) {
     // 必須先載入地圖，後續所有基於地圖縮放（Scale）的計算才會正確
     std::string mapImg, mapTxt;
     if (m_CurrentStage == App::Stage::BARRELS) {
-        mapImg = "../Resources/Images/board-barrels.png";
-        mapTxt = "../Resources/Maps/Map1.txt";
+        mapImg = RESOURCE_DIR"/Images/board-barrels.png";
+        mapTxt = RESOURCE_DIR"/Maps/Map1.txt";
     } else if (m_CurrentStage == App::Stage::CONVEYORS) {
-        mapImg = "../Resources/Images/board-conveyors.png";
-        mapTxt = "../Resources/Maps/Map2.txt";
+        mapImg = RESOURCE_DIR"/Images/board-conveyors.png";
+        mapTxt = RESOURCE_DIR"/Maps/Map2.txt";
     } else if (m_CurrentStage == App::Stage::ELEVATORS) {
-        mapImg = "../Resources/Images/board-elevators.png";
-        mapTxt = "../Resources/Maps/Map3.txt";
+        mapImg = RESOURCE_DIR"/Images/board-elevators.png";
+        mapTxt = RESOURCE_DIR"/Maps/Map3.txt";
     } else {
-        mapImg = "../Resources/Images/board-rivets.png";
-        mapTxt = "../Resources/Maps/Map4.txt";
+        mapImg = RESOURCE_DIR"/Images/board-rivets.png";
+        mapTxt = RESOURCE_DIR"/Maps/Map4.txt";
     }
 
     // 根據傳入的關卡編號，載入對應的地圖圖片與純文字檔 (MapX.txt)
@@ -1009,6 +1016,15 @@ void App::LoadLevel(int level) {
     m_DonkeyKong->SetMoveBounds(engineMinX, engineMaxX);
 
     m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
+    if (m_IsOpeningSequence && m_OpeningScene) {
+        m_OpeningScene->Start(); // 這裡會自動隱藏瑪利歐與公主
+
+        // 【新增】隱藏第一關的專屬物件，確保開場動畫畫面乾淨
+        if (m_HammerItem) m_HammerItem->SetVisible(false);
+        if (m_HammerItem2) m_HammerItem2->SetVisible(false);
+        if (m_OilBarrel) m_OilBarrel->SetVisible(false);
+        if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
+    }
 }
 
 /**
@@ -1022,7 +1038,7 @@ void App::Start() {
     LOG_TRACE("Start");
 
     // 建構 (construct) 地圖，並加入到 Renderer 渲染清單中
-    m_Map = std::make_shared<Map>("../Resources/Images/board-barrels.png", "../Resources/Maps/Map1.txt");
+    m_Map = std::make_shared<Map>(RESOURCE_DIR"/Images/board-barrels.png", RESOURCE_DIR"/Maps/Map1.txt");
     m_Renderer.AddChild(m_Map);
 
     // 建構 Mario 物件，把 Mario 裡面所有的圖層一口氣加進 App 的Renderer中
@@ -1218,10 +1234,12 @@ void App::Update() {
 
 #if 1  //sdbg: 按下 N 鍵切換到下一關測試, 按下 R 鍵 reset
     if (Util::Input::IsKeyDown(Util::Keycode::N)) {
-        m_CurrentLevel++;
-        if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
-        LoadLevel(m_CurrentLevel);
-        m_TransitionTimer = 0.0f;
+        if (!m_IsOpeningSequence) {
+            m_CurrentLevel++;
+            if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
+            LoadLevel(m_CurrentLevel);
+            m_TransitionTimer = 0.0f;
+        }
     }
     else if (Util::Input::IsKeyDown(Util::Keycode::R)) {
         LoadLevel(m_CurrentLevel);
@@ -1274,29 +1292,12 @@ void App::Update() {
     // 2. 開場動畫結束瞬間的「第一關初始化」
     // ==========================================
     if (m_OpeningScene && m_OpeningScene->IsFinished() && !m_LevelStarted) {
-        m_DonkeyKong->ResetToGame();
-        float dkScale = 2.0f; // 請依你畫面中 DK0.png 與鷹架的契合度來微調這個數字
-        m_DonkeyKong->SetScale({dkScale, dkScale});
-
-        // a. 把大金剛放到正式邏輯位置，並恢復正常狀態與大小
-        glm::vec2 dkLogicPos = {140.0f, 165.0f};
-        m_DonkeyKong->SetPosition(CoordinateManager::LogicToEngine(dkLogicPos));
-        // b. 把瑪利歐放到左下角起始位置 (依你的地圖邏輯座標調整)
-        m_Mario->SetPosition(CoordinateManager::LogicToEngine({110.0f, 660.0f}));
-
-        if (m_HammerItem) m_HammerItem->SetVisible(true);
-        if (m_HammerItem2) m_HammerItem2->SetVisible(true);
-        if (m_OilBarrel) m_OilBarrel->SetVisible(true);
-        if (m_StaticBarrels) m_StaticBarrels->SetVisible(true);
-
-        // c. 顯示公主
-        if (m_Princess) m_Princess->SetVisible(true);
-
-        // d. 確保地圖是第一關的「歪斜鋼樑」背景
-        m_Map->LoadNewMap(RESOURCE_DIR"/Images/board-barrels.png", RESOURCE_DIR"/Maps/Map1.txt");
-
-        m_LevelStarted = true; // 標記為已啟動，下次 Update 就不會再進來這裡了
+        LoadLevel(1);
+        m_LevelStarted = true;
+        m_Mario->IDLE();
     }
+
+    m_Mario->Update();
 
     // 1. 取得當前狀態，判定是否處於「可遊玩」狀態
     MarioState marioState = m_Mario->GetState();

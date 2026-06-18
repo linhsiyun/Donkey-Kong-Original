@@ -23,11 +23,11 @@ DonkeyKong::DonkeyKong()
           RESOURCE_DIR"/Images/Donkey_climb2.png", // Index 7
           RESOURCE_DIR"/Images/Donkey_Princess1.png", // Index 8
           RESOURCE_DIR"/Images/Donkey_Princess2.png",  // Index 9
+          RESOURCE_DIR"/Images/Donkey_fall1.png",     // Index 10
+          RESOURCE_DIR"/Images/Donkey_fall2.png",      // Index 11
           RESOURCE_DIR"/Images/push_off.png",
           RESOURCE_DIR"/Images/DKGrin.png"
-          RESOURCE_DIR"/Images/Donkey_Princess2.png", // Index 9
-          RESOURCE_DIR"/Images/Donkey_fall1.png",     // Index 10
-          RESOURCE_DIR"/Images/Donkey_fall2.png"      // Index 11
+
       }) {
     // 步驟一：停止父類別預設的自動播放，我們將自己根據時間控制圖片切換
     Stop();

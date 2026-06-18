@@ -41,12 +41,12 @@ void OpeningScene::Update(float dt) {
 
         // 階段 0：往上爬，每次固定爬 20 像素
         m_Timer += dt;
-        if (m_Timer >= 150.0f) { // 每 150 毫秒爬一步 (數字可微調)
+        if (m_Timer >= 200.0f) { // 每 150 毫秒爬一步 (數字可微調)
             m_Timer = 0.0f;
-            m_LogicY -= 23.0f;   // 每次上移 20 邏輯像素
+            m_LogicY -= 20.0f;   // 每次上移 20 邏輯像素
 
             // 根據目前高度，讓抱公主的圖片（Index 8 和 9）交替輪播
-            int currentFrame = (static_cast<int>(m_LogicY) / 22) % 2 == 0 ? 8 : 9;
+            int currentFrame = (static_cast<int>(m_LogicY) / 20) % 2 == 0 ? 8 : 9;
             m_DonkeyKong->SetCurrentFrame(currentFrame);
 
             // 爬到預想位置 Y=100
@@ -70,7 +70,7 @@ void OpeningScene::Update(float dt) {
             // 停止動畫，並強制設定為剛剛新增的第 11 張圖 (DKGrin.png)
             m_DonkeyKong->SetBehavior(DonkeyKong::Behavior::STATIONARY_LOOKING);
             m_DonkeyKong->Stop();
-            m_DonkeyKong->SetCurrentFrame(11);
+            m_DonkeyKong->SetCurrentFrame(13);
 
             // (可選) 讓公主站在旁邊
             if (m_Princess) {
@@ -87,15 +87,16 @@ void OpeningScene::Update(float dt) {
         }
     }
     else if (m_Phase == 2) {
+        m_DonkeyKong->SetCurrentFrame(13);
         // 階段 2：「一蹬一蹬」往左跳 (載入 intro-3 ~ intro-7)
-        float bounceDuration = 400.0f; // 每次彈跳花費 0.4 秒
+        float bounceDuration = 500.0f; // 每次彈跳花費 0.4 秒
         float bounceHeight = 35.0f;    // 彈跳的拋物線高度
         float bounceDistX = 52.0f;     // 每次彈跳向左移動 52 像素 (跳 5 次後剛好移到 140 左右)
 
         if (m_Timer == 0.0f) {
             // 起跳瞬間改變背景 (從 intro-3 開始)
             int introIndex = 3 + m_BounceCount;
-            if (introIndex <= 8) {
+            if (introIndex <= 7) {
                 m_Map->LoadNewMap(RESOURCE_DIR"/Images/intro-" + std::to_string(introIndex) + ".png", RESOURCE_DIR"/Maps/Map1.txt");
             }
         }
