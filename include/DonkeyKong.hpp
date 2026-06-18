@@ -46,12 +46,16 @@ public:
         MOVING_CHEST_BEATING, // 左右移動 + 只搥胸 (Level 2+)
         CLIMBING_AWAY,        // 【新增】過關時爬行離開畫面
         CLIMBING_WITH_PRINCESS, // 【新增】抱著公主爬行離開畫面
+        FALLING_STUNNED,        // 【新增】掉落到一半受傷/暈眩狀態
         OPENING_CLIMBING,
         OPENING_WAIT
     };
 
     void SetBehavior(Behavior behavior) { m_Behavior = behavior; }
     Behavior GetBehavior() const { return m_Behavior; }
+
+    // 設定當前關卡，用以調整 AI 難度
+    void SetLevel(int level) { m_Level = level; }
 
     // 設定左右移動的 X 軸邊界
     void SetMoveBounds(float minX, float maxX) { m_MinX = minX; m_MaxX = maxX; }
@@ -71,6 +75,7 @@ private:
 
     State m_State = State::CHEST_BEATING; // 一開始設定為搥胸狀態
     std::shared_ptr<Map> m_Map = nullptr;
+    int m_Level = 1;                      // 當前關卡
 
     // ===== 行為與移動參數 =====
     Behavior m_Behavior = Behavior::STATIONARY_LOOKING;

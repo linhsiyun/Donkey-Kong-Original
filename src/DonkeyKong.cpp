@@ -2,6 +2,7 @@
 #include "Util/Time.hpp"      // 用來取得每一幀的時間，進行計時
 #include "Util/Animation.hpp" // 需要透過它來手動控制圖片的幀數
 #include <cstdlib>            // 用於 rand() 隨機函式的實作
+#include <algorithm>          // 用於 std::max
 
 // 定義搥胸循環序列
 static const int chestSequence[] = {0, 0, 0, 0, 2, 1, 2, 0};
@@ -24,16 +25,15 @@ DonkeyKong::DonkeyKong()
           RESOURCE_DIR"/Images/Donkey_Princess2.png",  // Index 9
           RESOURCE_DIR"/Images/push_off.png",
           RESOURCE_DIR"/Images/DKGrin.png"
+          RESOURCE_DIR"/Images/Donkey_Princess2.png", // Index 9
+          RESOURCE_DIR"/Images/Donkey_fall1.png",     // Index 10
+          RESOURCE_DIR"/Images/Donkey_fall2.png"      // Index 11
       }) {
     // 步驟一：停止父類別預設的自動播放，我們將自己根據時間控制圖片切換
     Stop();
 
     // 步驟二：初始化，第一次進入「環顧狀態 (看左看右看前)」需要隨機搥胸多久
-#if 1 //sdbg
     m_NextLookTime = GetRandomChestBeatingDuration();
-#else
-    m_NextLookTime = 1;
-#endif
 
     // 初始化第一幀為序列的第一個動作
     m_CurrentChestFrame = 0;
@@ -47,11 +47,12 @@ DonkeyKong::DonkeyKong()
 // 回傳 1000 到 5000 的隨機毫秒 (1~5 秒)
 // =============================================
 float DonkeyKong::GetRandomChestBeatingDuration() {
-#if 1 //sdbg
-    return 1000.0f + static_cast<float>(rand() % 4001);
-#else
-     return 1000.0f + static_cast<float>(rand() % 1001);
-#endif
+    // 根據等級動態調整搥胸時間 (難度越高，轉頭速度越快)
+    // Level 1: 1000ms + (0~4000ms) = 1000~5000ms
+    // Level 5: 1000ms + (0~500ms) = 1000~1500ms
+    // 使用線性遞減公式，並確保最小值不低於 1000ms 的隨機區間
+    int range = (m_Level < 5) ? 4000 : 500;
+    return 1000.0f + static_cast<float>(std::rand() % (range + 1));
 }
 
 
@@ -135,6 +136,23 @@ void DonkeyKong::Update() {
         return;
     }
 
+    // --- 【新增】受傷/暈眩邏輯: 停在原地撥放 fall1/fall2 切換 ---
+    if (m_Behavior == Behavior::FALLING_STUNNED) {
+        m_ChestTimer += dt;
+        // 初始化動畫幀範圍，確保從 fall1 (10) 開始
+        if (m_CurrentChestFrame < 10 || m_CurrentChestFrame > 11) {
+            m_CurrentChestFrame = 10;
+            anim->SetCurrentFrame(10);
+        }
+
+        if (m_ChestTimer >= 200.0f) { // 每 200ms 切換受傷動作
+            m_ChestTimer = 0.0f;
+            m_CurrentChestFrame = (m_CurrentChestFrame == 10) ? 11 : 10;
+            anim->SetCurrentFrame(m_CurrentChestFrame);
+        }
+        return;
+    }
+
     // --- 移動邏輯: 移動搥胸模式 ---
     if (m_Behavior == Behavior::MOVING_CHEST_BEATING) {
         glm::vec2 pos = GetPosition();
@@ -153,7 +171,8 @@ void DonkeyKong::Update() {
         m_ChestTimer += dt; // 用來切換搥胸圖片的計時器
 
         // 每隔 500ms 依照指定序列 {0, 0, 0, 0, 2, 1, 2, 0} 切換圖片
-        if (m_ChestTimer >= 450.0f) {
+        float ChestTimeLimit = (m_Level < 5) ? 450.0f : 250;
+        if (m_ChestTimer >= ChestTimeLimit) {
             m_ChestTimer = 0.0f; // 重置內部的小計時器
 
             // 在 0~7 之間循環索引
@@ -219,11 +238,9 @@ void DonkeyKong::Update() {
                 anim->SetCurrentFrame(5);
 
                 // --- 核心互動：當向右看時，觸發產出下一個障礙物 (酒桶) ---
-#if 1 // TODO
                 if (m_BarrelSpawnCallback) {
                      m_BarrelSpawnCallback();
                 }
-#endif
             }
             else if (m_LookIndex >= 3) {
                 // 已經看完三個方向了，要把狀態切換回原本的搥胸狀態

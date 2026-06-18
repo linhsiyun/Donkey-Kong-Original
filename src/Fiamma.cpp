@@ -18,6 +18,21 @@ Fiamma::Fiamma() : AnimatedCharacter({
     m_State = State::FALLING;
 }
 
+void Fiamma::SetStageStyle(bool isRivet) {
+    std::vector<std::string> paths;
+    if (isRivet) {
+        // Stage 4: Foxfire (速度較快)
+        paths = { RESOURCE_DIR"/Images/foxfire1.png", RESOURCE_DIR"/Images/foxfire2.png" };
+        m_MoveSpeed = 100.0f;
+    } else {
+        // 其他關卡: Fireball (標準速度)
+        paths = { RESOURCE_DIR"/Images/fiamma1.png", RESOURCE_DIR"/Images/fiamma2.png" };
+        m_MoveSpeed = 80.0f;
+    }
+    // 建立新的 Animation 並替換 Drawable，保持 200ms 間隔與自動播放
+    m_Drawable = std::make_shared<Util::Animation>(paths, true, 200, true, 0);
+}
+
 void Fiamma::Update() {
     float dtMs = static_cast<float>(Util::Time::GetDeltaTimeMs());
     float dtSec = dtMs / 1000.0f;
@@ -51,14 +66,6 @@ void Fiamma::Update() {
             m_RandomTurnTimer = 1.0f + (std::rand() % 200) / 100.0f;
         }
 
-        if (m_Direction == Direction::RIGHT) {
-            currentPos.x += m_MoveSpeed * dtSec;
-            SetScale({std::abs(GetScale().x), GetScale().y});
-        } else {
-            currentPos.x -= m_MoveSpeed * dtSec;
-            SetScale({-std::abs(GetScale().x), GetScale().y});
-        }
-
         if (m_Map) {
             float checkY = footY - (2.0f * scaleRatio);
             auto [col, baseRow] = m_Map->GetTileIndexAtPosition(currentPos.x, checkY);
@@ -66,6 +73,9 @@ void Fiamma::Update() {
             auto [centerCol, centerRow] = m_Map->GetTileIndexAtPosition(currentPos.x, currentPos.y);
             TileType centerTile = m_Map->GetTileAtPosition(currentPos.x, currentPos.y);
 
+            bool isOnLadderX = false; // [修正] 必須先宣告變數
+
+            // B. 遇到梯子機率向上爬
             // A. 【修復判定 Bug】：只在離開梯子的網格時，才允許重新骰機率
             if (centerCol != m_LastCheckedLadderCol && centerTile != TileType::LADDER && centerTile != TileType::BROKEN_LADDER) {
                 m_LastCheckedLadderCol = -1;
@@ -75,116 +85,212 @@ void Fiamma::Update() {
             if (centerTile == TileType::LADDER || centerTile == TileType::BROKEN_LADDER) {
                 glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(centerCol, centerRow);
 
-                // 靠近梯子中心，且還沒對這個梯子骰過機率
-                if (std::abs(currentPos.x - gridCenter.x) < (8.0f * scaleRatio) && centerCol != m_LastCheckedLadderCol) {
+                if (std::abs(currentPos.x - gridCenter.x) < (8.0f * scaleRatio)) {
+                    isOnLadderX = true; // [修正] 標記正在梯子範圍內
+                    if (centerCol != m_LastCheckedLadderCol) {
+                        m_LastCheckedLadderCol = centerCol;
+                        if ((std::rand() % 100) < 25) {
+                            m_State = State::CLIMBING;
+                            m_ClimbDir = VerticalDirection::UP;
+                            currentPos.x = gridCenter.x;
+                            m_RandomTurnTimer = static_cast<float>(baseRow);
+                        }
+                        // 靠近梯子中心，且還沒對這個梯子骰過機率
+                        if (std::abs(currentPos.x - gridCenter.x) < (8.0f * scaleRatio) && centerCol != m_LastCheckedLadderCol) {
 
-                    m_LastCheckedLadderCol = centerCol; // 標記已判定，避免重複觸發
+                            m_LastCheckedLadderCol = centerCol; // 標記已判定，避免重複觸發
 
-                    int roll = std::rand() % 100;
-                    bool shouldClimb = false;
+                            int roll = std::rand() % 100;
+                            bool shouldClimb = false;
 
-                    // 依照梯子種類給予不同機率
-                    if (centerTile == TileType::BROKEN_LADDER) {
-                        if (roll < 30) shouldClimb = true; // 30% 機率爬破損梯子
-                    } else if (centerTile == TileType::LADDER) {
-                        if (roll < 50) shouldClimb = true; // 50% 機率爬正常梯子
-                    }
+                            // 依照梯子種類給予不同機率
+                            if (centerTile == TileType::BROKEN_LADDER) {
+                                if (roll < 30) shouldClimb = true; // 30% 機率爬破損梯子
+                            } else if (centerTile == TileType::LADDER) {
+                                if (roll < 50) shouldClimb = true; // 50% 機率爬正常梯子
+                            }
 
-                    if (shouldClimb) {
-                        m_State = State::CLIMBING;
-                        currentPos.x = gridCenter.x;
-                        m_RandomTurnTimer = static_cast<float>(baseRow);
-                    }
-                }
-            }
-
-            // C. 地板吸附與邊界防呆
-            if (m_State == State::WALKING) {
-                int floorRow = -1;
-
-                // 【修復厚地板與斜坡】：智慧型掃描
-                // 優先檢查上方(baseRow - 1)，但只接受 FLOOR，避免被半空的梯子吸上去
-                TileType upTile = (baseRow - 1 >= 0) ? m_Map->GetLevelData().GetTile(col, baseRow - 1) : TileType::EMPTY;
-
-                if (upTile == TileType::FLOOR) {
-                    floorRow = baseRow - 1; // 完美爬上坡 / 浮出地板
-                } else {
-                    TileType currentTile = (baseRow >= 0 && baseRow < m_Map->GetLevelData().GetHeight()) ? m_Map->GetLevelData().GetTile(col, baseRow) : TileType::EMPTY;
-                    if (currentTile == TileType::FLOOR || currentTile == TileType::LADDER || currentTile == TileType::BROKEN_LADDER) {
-                        floorRow = baseRow; // 平地行走
-                    } else {
-                        TileType downTile = (baseRow + 1 < m_Map->GetLevelData().GetHeight()) ? m_Map->GetLevelData().GetTile(col, baseRow + 1) : TileType::EMPTY;
-                        if (downTile == TileType::FLOOR || downTile == TileType::LADDER || downTile == TileType::BROKEN_LADDER) {
-                            floorRow = baseRow + 1; // 走下坡
-                        } else {
-                            TileType downDownTile = (baseRow + 2 < m_Map->GetLevelData().GetHeight()) ? m_Map->GetLevelData().GetTile(col, baseRow + 2) : TileType::EMPTY;
-                            if (downDownTile == TileType::FLOOR || downDownTile == TileType::LADDER || downDownTile == TileType::BROKEN_LADDER) {
-                                floorRow = baseRow + 2; // 陡降坡
+                            if (shouldClimb) {
+                                m_State = State::CLIMBING;
+                                currentPos.x = gridCenter.x;
+                                m_RandomTurnTimer = static_cast<float>(baseRow);
                             }
                         }
                     }
-                }
+                    // C. 碰到地板下方有梯子，機率向下爬
+                    else {
+                        TileType tileBelow = m_Map->GetLevelData().GetTile(col, baseRow + 10);
 
-                if (floorRow != -1) {
-                    glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(col, floorRow);
-                    currentPos.y = gridCenter.y + (m_Map->GetTileHeight() / 2.0f) + (size.y / 2.0f);
-                } else {
-                    // 走到懸崖邊緣防呆轉向
-                    m_Direction = (m_Direction == Direction::LEFT) ? Direction::RIGHT : Direction::LEFT;
-                    currentPos.x += (m_Direction == Direction::RIGHT) ? (5.0f * scaleRatio) : -(5.0f * scaleRatio);
-                    m_RandomTurnTimer = 2.0f;
+                        if (tileBelow == TileType::LADDER || tileBelow == TileType::BROKEN_LADDER) {
+                            auto [centerCol, centerRow] = m_Map->GetTileIndexAtPosition(currentPos.x, currentPos.y);
+                            glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(centerCol, centerRow);
+
+                            if (std::abs(currentPos.x - gridCenter.x) < (8.0f * scaleRatio)) {
+                                isOnLadderX = true; // [修正] 標記正在梯子範圍內
+                                if (centerCol != m_LastCheckedLadderCol) {
+                                    m_LastCheckedLadderCol = centerCol;
+                                    if ((std::rand() % 100) < 25) {
+                                        m_State = State::CLIMBING;
+                                        m_ClimbDir = VerticalDirection::DOWN;
+                                        currentPos.x = gridCenter.x;
+                                        m_RandomTurnTimer = static_cast<float>(baseRow);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 如果完全不在梯子 X 範圍內，重置標記，允許火球之後爬下一根梯子
+                    if (!isOnLadderX) {
+                        m_LastCheckedLadderCol = -1;
+                    }
+
+                    // C. 地板吸附與邊界防呆
+                    if (m_State == State::WALKING) {
+                        // 只有確定還在 WALKING 狀態，才套用水平位移
+                        if (m_Direction == Direction::RIGHT) {
+                            currentPos.x += m_MoveSpeed * dtSec;
+                            SetScale({std::abs(GetScale().x), GetScale().y});
+                        } else {
+                            currentPos.x -= m_MoveSpeed * dtSec;
+                            SetScale({-std::abs(GetScale().x), GetScale().y});
+                        }
+
+                        int floorRow = -1;
+
+                        // 【修復厚地板與斜坡】：智慧型掃描
+                        // 優先檢查上方(baseRow - 1)，但只接受 FLOOR，避免被半空的梯子吸上去
+                        TileType upTile = (baseRow - 1 >= 0) ? m_Map->GetLevelData().GetTile(col, baseRow - 1) : TileType::EMPTY;
+
+                        if (upTile == TileType::FLOOR) {
+                            floorRow = baseRow - 1; // 完美爬上坡 / 浮出地板
+                        } else {
+                            TileType currentTile = (baseRow >= 0 && baseRow < m_Map->GetLevelData().GetHeight()) ? m_Map->GetLevelData().GetTile(col, baseRow) : TileType::EMPTY;
+                            if (currentTile == TileType::FLOOR || currentTile == TileType::LADDER || currentTile == TileType::BROKEN_LADDER) {
+                                floorRow = baseRow; // 平地行走
+                            } else {
+                                TileType downTile = (baseRow + 1 < m_Map->GetLevelData().GetHeight()) ? m_Map->GetLevelData().GetTile(col, baseRow + 1) : TileType::EMPTY;
+                                if (downTile == TileType::FLOOR || downTile == TileType::LADDER || downTile == TileType::BROKEN_LADDER) {
+                                    floorRow = baseRow + 1; // 走下坡
+                                } else {
+                                    TileType downDownTile = (baseRow + 2 < m_Map->GetLevelData().GetHeight()) ? m_Map->GetLevelData().GetTile(col, baseRow + 2) : TileType::EMPTY;
+                                    if (downDownTile == TileType::FLOOR || downDownTile == TileType::LADDER || downDownTile == TileType::BROKEN_LADDER) {
+                                        floorRow = baseRow + 2; // 陡降坡
+                                    }
+                                    // 修正：只檢查當前網格(baseRow)與正下方一格(baseRow+1)，避免吸附到上方的梯子或平台
+                                    for (int r = baseRow; r <= baseRow + 1; ++r) {
+                                        if (r >= 0 && r < m_Map->GetLevelData().GetHeight()) {
+                                            TileType type = m_Map->GetLevelData().GetTile(col, r);
+                                            if (type == TileType::FLOOR || type == TileType::LADDER || type == TileType::BROKEN_LADDER) {
+                                                floorRow = r;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (floorRow != -1) {
+                                        // 取得地板的精準座標
+                                        glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(col, floorRow);
+                                        float targetY = gridCenter.y + (m_Map->GetTileHeight() / 2.0f) + (size.y / 2.0f);
+
+                                        // 只有當位移偏差大於一定程度時才進行 Y 軸修正，減少微小抖動（蛇行）
+                                        if (std::abs(currentPos.y - targetY) > 1.0f) {
+                                            currentPos.y = targetY;
+                                            LOG_DEBUG("w y snap: {}", currentPos.y);
+                                        }
+                                    } else {
+                                        // 走到懸崖邊緣防呆轉向
+                                        m_Direction = (m_Direction == Direction::LEFT) ? Direction::RIGHT : Direction::LEFT;
+                                        currentPos.x += (m_Direction == Direction::RIGHT) ? (5.0f * scaleRatio) : -(5.0f * scaleRatio);
+                                        m_RandomTurnTimer = 2.0f;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (m_State == State::CLIMBING) {
+                        // --- 爬梯邏輯 ---
+
+                        // 【修正 1】強制鎖定 X 座標，防止爬行時蛇行
+                        if (m_Map && m_LastCheckedLadderCol != -1) {
+                            // 使用起始時記憶的 Col 來取得精準中心
+                            glm::vec2 ladderCenter = m_Map->GetGridToWorldPosition(m_LastCheckedLadderCol, 0);
+                            currentPos.x = ladderCenter.x;
+                        }
+
+                        if (m_ClimbDir == VerticalDirection::UP) {
+                            currentPos.y += m_ClimbSpeed * dtSec;
+
+                            // 防止爬出地圖頂端 (視窗外)：若火球頂部觸及地圖上邊界，強迫改為向下爬
+                            if (m_Map && (currentPos.y + size.y / 2.0f) > m_Map->GetTopBoundary()) {
+                                currentPos.y = m_Map->GetTopBoundary() - (size.y / 2.0f);
+                                m_ClimbDir = VerticalDirection::DOWN;
+                            }
+                        } else {
+                            currentPos.y -= m_ClimbSpeed * dtSec;
+                        }
+
+                        if (m_Map) {
+                            footY = currentPos.y - (size.y / 2.0f);
+                            auto [footCol, footRow] = m_Map->GetTileIndexAtPosition(currentPos.x, footY - (2.0f * scaleRatio));
+
+                            auto& levelData = m_Map->GetLevelData();
+                            auto getTile = [&](int c, int r) {
+                                if (c < 0 || c >= levelData.GetWidth() || r < 0 || r >= levelData.GetHeight()) return TileType::EMPTY;
+                                return levelData.GetTile(c, r);
+                            };
+
+                            TileType footTile = getTile(footCol, footRow);
+                            //unused, TileType tileBelow = getTile(footCol, footRow + 1);
+
+                            // 判定是否為平台表面 (檢查左右是否有地板)
+                            auto checkIsPlatform = [&](int c, int r) {
+                                TileType current = getTile(c, r);
+                                if (current != TileType::FLOOR && current != TileType::LADDER) return false;
+                                return (getTile(c - 1, r) == TileType::FLOOR || getTile(c + 1, r) == TileType::FLOOR);
+                            };
+
+                            int startRow = static_cast<int>(m_RandomTurnTimer);
+                            bool hasMovedEnough = std::abs(startRow - footRow) >= 10;
+                            bool shouldStopClimbing = false;
+                            int snapRow = footRow;
+
+                            if (m_ClimbDir == VerticalDirection::UP) {
+                                // 向上爬：必須「腳底脫離固體地板」且「下方那一格是平台表面」才停止
+                                // 這能確保 Fiamma 爬過 8 tiles 厚的地板，站到最頂層
+                                if (hasMovedEnough && footTile != TileType::FLOOR && footTile != TileType::LADDER && checkIsPlatform(footCol, footRow + 1)) {
+                                    shouldStopClimbing = true;
+                                    snapRow = footRow + 1; // 站在下方那一格的地板上
+                                }
+                            } else {
+                                // 向下爬：腳底踩到地板平台即停止
+                                if (hasMovedEnough && checkIsPlatform(footCol, footRow)) {
+                                    shouldStopClimbing = true;
+                                    snapRow = footRow; // 腳就在這一格
+                                }
+                            }
+
+                            if (shouldStopClimbing) {
+                                m_State = State::WALKING;
+                                m_LastCheckedLadderCol = footCol;
+                                m_Direction = (std::rand() % 2 == 0) ? Direction::LEFT : Direction::RIGHT;
+                                m_RandomTurnTimer = 1.0f + (std::rand() % 200) / 100.0f;
+
+                                int targetRow = footRow;
+                                while (targetRow - 1 >= 0 && m_Map->GetLevelData().GetTile(footCol, targetRow - 1) == TileType::FLOOR) {
+                                    targetRow--;
+                                }
+
+                                // 根據 snapRow 精準對齊地板表面
+                                gridCenter = m_Map->GetGridToWorldPosition(footCol, snapRow);
+                                currentPos.y = gridCenter.y + (m_Map->GetTileHeight() / 2.0f) + (size.y / 2.0f);
+                            }
+                        }
+                    }
+
+                    SetPosition(currentPos);
                 }
             }
         }
     }
-    else if (m_State == State::CLIMBING) {
-        // --- 爬梯邏輯 ---
-        currentPos.y += m_ClimbSpeed * dtSec;
-
-        if (m_Map) {
-            footY = currentPos.y - (size.y / 2.0f);
-            auto [footCol, footRow] = m_Map->GetTileIndexAtPosition(currentPos.x, footY - (2.0f * scaleRatio));
-
-            TileType footTile = TileType::EMPTY;
-            if (footCol >= 0 && footCol < m_Map->GetLevelData().GetWidth() && footRow >= 0 && footRow < m_Map->GetLevelData().GetHeight()) {
-                footTile = m_Map->GetLevelData().GetTile(footCol, footRow);
-            }
-
-            // unused, auto [centerCol, centerRow] = m_Map->GetTileIndexAtPosition(currentPos.x, currentPos.y);
-            TileType centerTile = m_Map->GetTileAtPosition(currentPos.x, currentPos.y);
-
-            bool isPlatform = false;
-            if (footTile == TileType::FLOOR || footTile == TileType::LADDER || footTile == TileType::BROKEN_LADDER) {
-                TileType leftTile = (footCol - 1 >= 0) ? m_Map->GetLevelData().GetTile(footCol - 1, footRow) : TileType::EMPTY;
-                TileType rightTile = (footCol + 1 < m_Map->GetLevelData().GetWidth()) ? m_Map->GetLevelData().GetTile(footCol + 1, footRow) : TileType::EMPTY;
-
-                if (leftTile == TileType::FLOOR || rightTile == TileType::FLOOR) {
-                    isPlatform = true;
-                }
-            }
-
-            // 【關鍵 2】：計算「爬了幾個網格」(Row 的數值越往上越小)
-            int startRow = static_cast<int>(m_RandomTurnTimer);
-            // 由於一層樓的間距約 8 個 Row，我們要求它至少往上爬 5 個 Row 才算真正離開底層
-            bool hasLeftBottomFloor = (startRow - footRow) >= 5;
-
-            // 必須離開底層 + 碰到真正的平台 + 身體已經探出梯子頂部 才能停下
-            if (isPlatform && centerTile != TileType::LADDER && centerTile != TileType::BROKEN_LADDER && hasLeftBottomFloor) {
-                m_State = State::WALKING;
-                m_LastCheckedLadderCol = -1;
-                m_Direction = (std::rand() % 2 == 0) ? Direction::LEFT : Direction::RIGHT;
-                m_RandomTurnTimer = 1.0f + (std::rand() % 200) / 100.0f;
-
-                int targetRow = footRow;
-                while (targetRow - 1 >= 0 && m_Map->GetLevelData().GetTile(footCol, targetRow - 1) == TileType::FLOOR) {
-                    targetRow--;
-                }
-
-                glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(footCol, footRow);
-                currentPos.y = gridCenter.y + (m_Map->GetTileHeight() / 2.0f) + (size.y / 2.0f);
-            }
-        }
-    }
-
-    SetPosition(currentPos);
 }
