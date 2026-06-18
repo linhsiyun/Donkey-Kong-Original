@@ -27,7 +27,7 @@ set(INCLUDE_FILES
     Elevator.hpp
     CementPan.hpp
     CementSpawner.hpp
-    ConveeyorSystem.hpp
+    ConveyorSystem.hpp
     OpeningScene.hpp
 )
 

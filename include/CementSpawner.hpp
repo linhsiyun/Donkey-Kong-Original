@@ -41,7 +41,9 @@ public:
     }
 
 private:
-    TileType m_TargetBelt;
+    // 在「傳送帶關卡」（Stage 2）中，畫面上有三種不同特性的傳送帶（例如長度、高度或初始方向不同），
+    // 分別對應 TileType::CONVEYOR1、CONVEYOR2 與 CONVEYOR3。
+    TileType m_TargetBelt;  // 記錄該生成器（Spawner）是屬於哪一條傳送帶。
     Side m_Side;
     float m_SpawnTimer = 0.0f; //0.0f;
     float m_SpawnInterval = 3500.0f; // 每 3.5 秒生成一個

@@ -77,6 +77,7 @@ private:
     //void ShowMario(void);
     std::shared_ptr<Mario> m_Mario;
     std::shared_ptr<Fiamma> m_Fireball;
+    std::shared_ptr<Fiamma> m_Fireball2;
     std::shared_ptr<HUDManager> m_HUDText;
     std::shared_ptr<DonkeyKong> m_DonkeyKong;
     std::vector<std::shared_ptr<Elevator>> m_Elevators; // 儲存所有畫面上的電梯
@@ -128,6 +129,18 @@ private:
     bool m_IsFirstBarrel = true; // 用來追蹤是否為第一顆木桶
     std::shared_ptr<OpeningScene> m_OpeningScene;
     bool m_IsOpeningSequence = false;
+
+    // 【新增】火球生成倒數計時與跳躍速度（用於 Stage 2）
+    float m_FireballTimerMs = 0.0f;
+    float m_FireballVelocityY = 0.0f;
+    float m_FireballVelocityX = 0.0f;
+    bool m_FireballJumping = false;
+
+    float m_FireballTimerMs2 = 0.0f;
+    float m_FireballVelocityY2 = 0.0f;
+    float m_FireballVelocityX2 = 0.0f;
+    bool m_FireballJumping2 = false;
+    bool m_LevelStarted = false; // 紀錄第一關是否已經完成初始化
 };
 
 #endif

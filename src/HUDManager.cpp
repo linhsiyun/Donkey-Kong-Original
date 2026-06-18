@@ -3,7 +3,6 @@
 #include <sstream>
 #include "Character.hpp"
 #include "config.hpp"
-#include "Setting.hpp"
 #include "CoordinateManager.hpp"
 
 static std::string FormatInt(int score, int width) {
@@ -129,7 +128,7 @@ void HUDManager::Update(float deltaTime) {
 
     // 更新 Bonus 倒數
     bonusTimer += deltaTime;
-    if (bonusTimer >= 2000.0f && bonusTime > 00.0f) {
+    if (bonusTimer >= 2000.0f && bonusTime > 00.0f) { // 每 2 秒 bonus 扣 100 分
         bonusTime -= 100;
         bonusTimer = 0.0f;
         bonusText->SetText(FormatInt(bonusTime, 4));

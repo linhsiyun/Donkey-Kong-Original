@@ -46,7 +46,8 @@ public:
         MOVING_CHEST_BEATING, // 左右移動 + 只搥胸 (Level 2+)
         CLIMBING_AWAY,        // 【新增】過關時爬行離開畫面
         CLIMBING_WITH_PRINCESS, // 【新增】抱著公主爬行離開畫面
-        OPENING_CLIMBING
+        OPENING_CLIMBING,
+        OPENING_WAIT
     };
 
     void SetBehavior(Behavior behavior) { m_Behavior = behavior; }
@@ -59,6 +60,7 @@ public:
     // 這能解決你說的「位置改了參數沒變」的問題，確保 Update 邏輯會參考這裡
     float GetMinX() const { return m_MinX; }
     float GetMaxX() const { return m_MaxX; }
+    void ResetToGame();
 
 private:
     // 定義 DK 可能的兩種行為狀態

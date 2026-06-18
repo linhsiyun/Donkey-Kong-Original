@@ -16,6 +16,8 @@ public:
         SetScale({2.5f, 2.5f}); // 保持與 Mario 一致的視覺比例
     }
 
+    TileType GetTargetBelt() const { return m_TargetBelt; }
+
     bool ShouldRemove() const { return m_ShouldRemove; }
 
     /**

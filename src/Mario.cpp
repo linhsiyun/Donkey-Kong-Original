@@ -3,6 +3,9 @@
 #include "Util/Keycode.hpp"
 #include "Util/Logger.hpp"
 
+// 定義全域跳躍時間變數，預設為 45.0f
+float g_MarioTotalJumpTime = 45.0f;
+
 Mario::Mario() {
     // 初始化 靜止的 Mario (Character)
     m_Idle = std::make_shared<Character>(RESOURCE_DIR"/Images/Walk0.png");
@@ -260,7 +263,7 @@ void Mario::Jump() {
     if (m_CurrentState == MarioState::DEAD || m_CurrentState == MarioState::WIN) return;
 
     // 設定跳躍參數 (後續可以修改這裡的數值)
-    const float totalJumpTime = 45.0f; // 跳躍總時間 (Frames) - 時間越短跳越快
+    float totalJumpTime = g_MarioTotalJumpTime; // 根據全域變數動態決定跳躍時長
     const float jumpHeight = GetSize().y * 1.25f;    // 跳躍高度改為 Mario 尺寸的1.25倍
 
     m_JumpTimer += 1.0f;

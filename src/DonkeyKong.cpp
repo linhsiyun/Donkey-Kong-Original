@@ -22,7 +22,8 @@ DonkeyKong::DonkeyKong()
           RESOURCE_DIR"/Images/Donkey_climb2.png", // Index 7
           RESOURCE_DIR"/Images/Donkey_Princess1.png", // Index 8
           RESOURCE_DIR"/Images/Donkey_Princess2.png",  // Index 9
-          RESOURCE_DIR"/Images/push_off.png"
+          RESOURCE_DIR"/Images/push_off.png",
+          RESOURCE_DIR"/Images/DKGrin.png"
       }) {
     // 步驟一：停止父類別預設的自動播放，我們將自己根據時間控制圖片切換
     Stop();
@@ -53,6 +54,31 @@ float DonkeyKong::GetRandomChestBeatingDuration() {
 #endif
 }
 
+
+void DonkeyKong::ResetToGame() {
+    // 1. 強制將行為與狀態切回常規遊戲的搥胸模式
+    m_Behavior = Behavior::STATIONARY_LOOKING;
+    m_State = State::CHEST_BEATING;
+
+    // 2. 將所有內部的狀態與動畫計時器歸零重置
+    m_ChestTimer = 0.0f;
+    m_StateTimer = 0.0f;
+    m_LookTimer = 0.0f;
+    m_LookIndex = 0;
+    m_CurrentChestFrame = 0;
+
+    // 3. 關鍵修復：立刻將當前幀切換到第 0 幀（DK0.png），消除 250ms 的等待閃爍
+    auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
+    if (anim) {
+        anim->SetCurrentFrame(0);
+    }
+
+    // 4. 關鍵修復：設定大金剛常規遊戲下的專屬正確比例（不要套用 marioScale）
+    // 註：此處數值（例如 2.5f）可根據你畫面上大金剛與紅色鷹架的契合度自由微調
+    SetScale({2.5f, 2.5f});
+}
+
+
 // =============================================
 // 核心更新方法：處理狀態機與動畫計時
 // =============================================
@@ -64,6 +90,11 @@ void DonkeyKong::Update() {
     auto anim = std::dynamic_pointer_cast<Util::Animation>(m_Drawable);
     if (!anim) return; // 保護機制，如果沒抓到就不執行，避免程式崩潰
 
+
+    if (m_Behavior == Behavior::OPENING_WAIT) {
+        return;
+    }
+
     if (m_Behavior == Behavior::OPENING_CLIMBING) {
         m_ChestTimer += dt;
         int startFrame = 8; // Donkey_Princess1(8) 與 Donkey_Princess2(9) 交替播放
@@ -73,7 +104,7 @@ void DonkeyKong::Update() {
             anim->SetCurrentFrame(startFrame);
         }
 
-        if (m_ChestTimer >= 200.0f) { // 每 200ms 切換一次爬行動作
+        if (m_ChestTimer >= 400.0f) { // 每 200ms 切換一次爬行動作
             m_ChestTimer = 0.0f;
             m_CurrentChestFrame = (m_CurrentChestFrame == startFrame) ? startFrame + 1 : startFrame;
             anim->SetCurrentFrame(m_CurrentChestFrame);
@@ -84,7 +115,7 @@ void DonkeyKong::Update() {
     // --- 【新增】移動邏輯: 爬行離開畫面 ---
     if (m_Behavior == Behavior::CLIMBING_AWAY || m_Behavior == Behavior::CLIMBING_WITH_PRINCESS) {
         glm::vec2 pos = GetPosition();
-        pos.y += 80.0f * (dt / 1500.0f); // 向上爬行速度 (已放慢)
+        pos.y += 10.0f * (dt / 1500.0f); // 向上爬行速度 (已放慢)
         SetPosition(pos);
 
         m_ChestTimer += dt;
@@ -96,7 +127,7 @@ void DonkeyKong::Update() {
             anim->SetCurrentFrame(startFrame);
         }
 
-        if (m_ChestTimer >= 200.0f) { // 每 200ms 切換爬行動作
+        if (m_ChestTimer >= 400.0f) { // 每 200ms 切換爬行動作
             m_ChestTimer = 0.0f;
             m_CurrentChestFrame = (m_CurrentChestFrame == startFrame) ? startFrame + 1 : startFrame;
             anim->SetCurrentFrame(m_CurrentChestFrame);
