@@ -124,6 +124,7 @@ private:
     float m_DKFallTimer = 0.0f; // 【新增】DK 下墜旋轉計時器
     int m_RivetCount = 0;       // 【新增】剩餘插銷數量
     bool m_IsGameOver = false;  // 【新增】是否遊戲結束
+    bool m_WaitingForRAtVictory = false; // 當 Level5 勝利後，等待玩家按 R 返回第 1 關
 
     std::set<void*> m_JumpOverObstacles; // 【新增】紀錄單次跳躍中已得分的障礙物
 

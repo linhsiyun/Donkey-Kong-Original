@@ -50,7 +50,8 @@ void Fiamma::Update() {
 
         if (m_Map) {
             TileType footTile = m_Map->GetTileAtPosition(currentPos.x, footY - (2.0f * scaleRatio));
-            if (footTile == TileType::FLOOR || footTile == TileType::LADDER || footTile == TileType::BROKEN_LADDER) {
+            // Treat RIVET as a solid ground while it exists on the map
+            if (footTile == TileType::FLOOR || footTile == TileType::LADDER || footTile == TileType::BROKEN_LADDER || footTile == TileType::RIVET) {
                 m_State = State::WALKING;
                 auto [col, row] = m_Map->GetTileIndexAtPosition(currentPos.x, footY - (2.0f * scaleRatio));
                 glm::vec2 gridCenter = m_Map->GetGridToWorldPosition(col, row);
@@ -134,7 +135,8 @@ void Fiamma::Update() {
                 for (int r = baseRow; r <= baseRow + 1; ++r) {
                     if (r >= 0 && r < m_Map->GetLevelData().GetHeight()) {
                         TileType type = m_Map->GetLevelData().GetTile(col, r);
-                        if (type == TileType::FLOOR || type == TileType::LADDER || type == TileType::BROKEN_LADDER) {
+                        // Consider RIVET as a valid floor while present
+                        if (type == TileType::FLOOR || type == TileType::LADDER || type == TileType::BROKEN_LADDER || type == TileType::RIVET) {
                             floorRow = r;
                             break;
                         }
@@ -198,8 +200,11 @@ void Fiamma::Update() {
             // 判定是否為平台表面 (檢查左右是否有地板)
             auto checkIsPlatform = [&](int c, int r) {
                 TileType current = getTile(c, r);
-                if (current != TileType::FLOOR && current != TileType::LADDER) return false;
-                return (getTile(c - 1, r) == TileType::FLOOR || getTile(c + 1, r) == TileType::FLOOR);
+                // Treat RIVET as a platform surface while it exists
+                if (current != TileType::FLOOR && current != TileType::LADDER && current != TileType::RIVET) return false;
+                TileType left = getTile(c - 1, r);
+                TileType right = getTile(c + 1, r);
+                return (left == TileType::FLOOR || left == TileType::RIVET || right == TileType::FLOOR || right == TileType::RIVET);
             };
 
             int startRow = static_cast<int>(m_RandomTurnTimer);

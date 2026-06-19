@@ -1205,16 +1205,27 @@ void App::Update() {
         LoadLevel(m_CurrentLevel);
         m_TransitionTimer = 0.0f;
     }
-    else if (Util::Input::IsKeyDown(Util::Keycode::R)) {
+    else if (Util::Input::IsKeyDown(Util::Keycode::R) && !m_WaitingForRAtVictory) {
         LoadLevel(m_CurrentLevel);
         m_TransitionTimer = 0.0f;
+    }
+    else if (Util::Input::IsKeyDown(Util::Keycode::R) && m_WaitingForRAtVictory) {
+        // Player requested to restart after Level 5 victory: go to Level 1
+        m_WaitingForRAtVictory = false;
+        // restore black cover to default and hide
+        if (m_BlackCover) {
+            m_BlackCover->SetImage(RESOURCE_DIR"/Images/black_04.png");
+            m_BlackCover->SetVisible(false);
+        }
+        m_CurrentLevel = 1;
+        LoadLevel(m_CurrentLevel);
     }
     else if (Util::Input::IsKeyDown(Util::Keycode::H)) {
         // 按下 H 鍵重置最高分
         m_HUDText->ResetHighScore();
     }
     else if (Util::Input::IsKeyDown(Util::Keycode::F) && m_CurrentStage == Stage::RIVETS) {
-        // Debug: 立即拔掉所有插銷並觸發勝利動畫
+        // Debug: 立即拔掉所有插銷並觸發勝利動畫 (Stage 4)
         for (auto& pair : m_RivetVisuals) {
             m_Renderer.RemoveChild(pair.second);
             auto [rx, ry] = pair.first;
@@ -1224,6 +1235,19 @@ void App::Update() {
         m_RivetVisuals.clear();
         m_RivetCount = 0;
         m_Mario->Win();
+    }
+    else if (Util::Input::IsKeyDown(Util::Keycode::F) && m_CurrentLevel == 5) {
+        // Debug: 直接把 Mario 放到與公主同一平台並過關 (Level 5 quick pass)
+        if (m_Princess) {
+            glm::vec2 pPos = m_Princess->GetPosition();
+            // 放在公主左側一點位置，確保在同一平台上
+            glm::vec2 target = {pPos.x - 30.0f, pPos.y};
+            m_Mario->SetPosition(target);
+            m_Mario->Win();
+        } else {
+            // fallback: 直接觸發 Win
+            m_Mario->Win();
+        }
     }
 
     // 處理 Game Over 狀態下的重啟邏輯
@@ -1245,6 +1269,17 @@ void App::Update() {
     bool isPlaying = (marioState != MarioState::DEAD && marioState != MarioState::WIN);
     float dt = static_cast<float>(Util::Time::GetDeltaTimeMs());
 
+    // 如果正在等待玩家按 R 回到第 1 關，暫停遊戲邏輯但繼續更新渲染與 HUD
+    if (m_WaitingForRAtVictory) {
+        if (m_BlackCover) {
+            m_BlackCover->SetVisible(true);
+            m_BlackCover->SetZIndex(100);
+        }
+        if (m_HUDText) m_HUDText->Update(dt);
+        m_Renderer.Update();
+        return; // 暫停其他遊戲邏輯，直到玩家按 R
+    }
+
     // --- 【新增】過場畫面處理 ---
     if (m_InTransition) {
         m_TransitionTimer -= dt;
@@ -1256,36 +1291,51 @@ void App::Update() {
 
         // --- 初始化過場堆疊物件 (僅在過場開始時執行一次) ---
         if (m_TransitionIcons.empty()) {
-            m_DonkeyKong->SetVisible(false); // 隱藏原本的 DK
-            m_Princess->SetVisible(false);   // 隱藏公主
+            // 若當前關卡為 5，顯示 victory.png 作為中心遮罩；否則保留原本的 Donkey 過場堆疊
+            if (m_CurrentLevel == 5) {
+                m_DonkeyKong->SetVisible(false);
+                m_Princess->SetVisible(false);
 
-            int targetLevel = m_CurrentLevel + 1; // 準備進入的關卡
-            int displayCount = std::min(targetLevel, 6); // 最多顯示 6 層 (150m)
-
-            for (int i = 1; i <= displayCount; ++i) {
-                // 建立 Donkey 圖示
-                auto kong = std::make_shared<Character>(RESOURCE_DIR"/Images/height-kong.png");
-                // 建立高度文字圖示 (height-1.png, height-2.png...)
-                auto label = std::make_shared<Character>(RESOURCE_DIR"/Images/height-" + std::to_string(i) + ".png");
-
-                float yPos = -160.0f + (i - 1) * 90.0f; // 調整起始高度與每一層的向上間距
-                kong->SetPosition({40.0f, yPos});      // Donkey 在右側
-                label->SetPosition({-120.0f, yPos});    // 高度數字在左側
-
-                kong->SetScale(m_Map->GetScale() * 1.0f);  // 縮小倍率 1.5f
-                label->SetScale(m_Map->GetScale() * 1.0f);
-                kong->SetZIndex(95);
-                label->SetZIndex(95);
-
-                m_TransitionIcons.push_back(kong);
-                m_TransitionIcons.push_back(label);
-                m_Renderer.AddChild(kong);
-                m_Renderer.AddChild(label);
+                // 設定 m_BlackCover 為 victory 圖片，並置中顯示（放大一倍）
+                m_BlackCover->SetImage(RESOURCE_DIR"/Images/victory.png");
+                m_BlackCover->SetZIndex(100);
+                // 放大為地圖縮放的兩倍
+                m_BlackCover->SetScale(m_Map->GetScale() * 2.0f);
+                m_BlackCover->SetPosition(CoordinateManager::LogicToEngine({360.0f, 360.0f}));
+                m_BlackCover->SetVisible(true);
             }
+            else {
+                m_DonkeyKong->SetVisible(false); // 隱藏原本的 DK
+                m_Princess->SetVisible(false);   // 隱藏公主
 
-            m_TransitionText->SetText("HOW HIGH CAN YOU GET?");
-            m_TransitionTextObj->m_Transform.translation = {0.0f, -270.0f}; // 調整文字在底部的座標
-            m_TransitionTextObj->SetVisible(true);
+                int targetLevel = m_CurrentLevel + 1; // 準備進入的關卡
+                int displayCount = std::min(targetLevel, 6); // 最多顯示 6 層 (150m)
+
+                for (int i = 1; i <= displayCount; ++i) {
+                    // 建立 Donkey 圖示
+                    auto kong = std::make_shared<Character>(RESOURCE_DIR"/Images/height-kong.png");
+                    // 建立高度文字圖示 (height-1.png, height-2.png...)
+                    auto label = std::make_shared<Character>(RESOURCE_DIR"/Images/height-" + std::to_string(i) + ".png");
+
+                    float yPos = -160.0f + (i - 1) * 90.0f; // 調整起始高度與每一層的向上間距
+                    kong->SetPosition({40.0f, yPos});      // Donkey 在右側
+                    label->SetPosition({-120.0f, yPos});    // 高度數字在左側
+
+                    kong->SetScale(m_Map->GetScale() * 1.0f);  // 縮小倍率 1.5f
+                    label->SetScale(m_Map->GetScale() * 1.0f);
+                    kong->SetZIndex(95);
+                    label->SetZIndex(95);
+
+                    m_TransitionIcons.push_back(kong);
+                    m_TransitionIcons.push_back(label);
+                    m_Renderer.AddChild(kong);
+                    m_Renderer.AddChild(label);
+                }
+
+                m_TransitionText->SetText("HOW HIGH CAN YOU GET?");
+                m_TransitionTextObj->m_Transform.translation = {0.0f, -270.0f}; // 調整文字在底部的座標
+                m_TransitionTextObj->SetVisible(true);
+            }
         }
 
         if (m_TransitionTimer <= 0.0f) {
@@ -1293,12 +1343,21 @@ void App::Update() {
             for (auto& icon : m_TransitionIcons) m_Renderer.RemoveChild(icon);
             m_TransitionIcons.clear();
 
-            m_InTransition = false;
-            m_DonkeyKong->SetVisible(true);
-            m_TransitionTextObj->SetVisible(false);
-            m_CurrentLevel++;
-            if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
-            LoadLevel(m_CurrentLevel); // 載入新關卡（這會自動隱藏 m_BlackCover）
+            // 如果這次過場是來自 Level 5 的勝利，保留 victory 圖片並等待玩家按 R
+            if (m_CurrentLevel == 5) {
+                m_InTransition = false;
+                m_WaitingForRAtVictory = true;
+                m_TransitionTextObj->SetVisible(false);
+                // 不載入新關卡，等待玩家按 R
+            } else {
+                // 一般過場：還原並載入下一關
+                m_InTransition = false;
+                m_DonkeyKong->SetVisible(true);
+                m_TransitionTextObj->SetVisible(false);
+                m_CurrentLevel++;
+                if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
+                LoadLevel(m_CurrentLevel); // 載入新關卡（這會自動隱藏 m_BlackCover）
+            }
         }
         m_HUDText->Update(dt);
         m_Renderer.Update();
