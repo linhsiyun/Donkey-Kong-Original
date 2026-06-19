@@ -9,6 +9,7 @@ set(SRC_FILES
     Map.cpp
     LevelData.cpp
     Elevator.cpp
+    OpeningScene.cpp
 )
 
 set(INCLUDE_FILES
@@ -26,7 +27,8 @@ set(INCLUDE_FILES
     Elevator.hpp
     CementPan.hpp
     CementSpawner.hpp
-    ConveeyorSystem.hpp
+    ConveyorSystem.hpp
+    OpeningScene.hpp
 )
 
 set(TEST_FILES
