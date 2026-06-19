@@ -118,7 +118,7 @@ void DonkeyKong::Update() {
     // ---------------------------------------------------------
     if (m_Behavior == Behavior::CLIMBING_AWAY || m_Behavior == Behavior::CLIMBING_WITH_PRINCESS) {
         glm::vec2 pos = GetPosition();
-        pos.y += 10.0f * (dt / 1500.0f); // 向上爬行速度
+        pos.y += 80.0f * (dt / 1500.0f); // 向上爬行速度
         SetPosition(pos);
 
         m_ChestTimer += dt;
