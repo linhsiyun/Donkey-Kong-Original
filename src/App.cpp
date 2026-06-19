@@ -190,7 +190,7 @@ END_OF_LOGIC:
  * @brief 更新水泥塊邏輯更新器。
  */
 void App::UpdateCementPans(MarioState marioState) {
-    LOG_DEBUG("CementPans count: {}", m_CementPans.size());
+    //LOG_DEBUG("CementPans count: {}", m_CementPans.size());
 
     for (auto it = m_CementPans.begin(); it != m_CementPans.end(); ) {
         auto& pan = *it;
