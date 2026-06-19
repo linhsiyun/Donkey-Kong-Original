@@ -22,6 +22,7 @@
 #include "Barrel.hpp"
 #include "CementPan.hpp"
 #include "MovingLadder.hpp"
+#include "OpeningScene.hpp"
 
 class App {
 public:
@@ -145,6 +146,9 @@ private:
     float m_FireballVelocityY2 = 0.0f;
     float m_FireballVelocityX2 = 0.0f;
     bool m_FireballJumping2 = false;
+    std::shared_ptr<OpeningScene> m_OpeningScene; // 儲存開場動畫物件
+    bool m_IsOpeningSequence = false;             // 標記目前是否正在播開場動畫
+    bool m_LevelStarted = false;
 };
 
 #endif

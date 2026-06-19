@@ -378,6 +378,8 @@ void App::SpawnPointVisual(glm::vec2 position, int score) {
     m_Renderer.AddChild(visual);
 }
 
+
+
 /**
  * @brief 載入並初始化指定關卡。
  *
@@ -389,14 +391,35 @@ void App::SpawnPointVisual(glm::vec2 position, int score) {
  * @param level 當前的關卡進度總數。
  */
 void App::LoadLevel(int level) {
-
     int stageNum = level % 4;
     if (stageNum == 0) stageNum = 4;
     m_CurrentStage = static_cast<App::Stage>(stageNum);
 
+
+
+    if (level == 1) {
+        // 如果開場動畫物件還沒被建立，就在這裡初始化（傳入需要的角色）
+        if (!m_OpeningScene) {
+            m_OpeningScene = std::make_shared<OpeningScene>(m_DonkeyKong, m_Map, m_Mario, m_Princess);
+        }
+
+        // 如果動畫還沒播完，就開啟動畫模式 (True)，並暫停一般遊戲 (False)
+        if (!m_OpeningScene->IsFinished()) {
+            m_IsOpeningSequence = true;
+            m_LevelStarted = false;
+        } else {
+            m_IsOpeningSequence = false;
+            m_LevelStarted = true;
+        }
+    } else {
+        // 第 2, 3, 4 關絕對不會有開場動畫
+        m_IsOpeningSequence = false;
+        m_LevelStarted = true;
+    }
+
     // 初始化邏輯半寬高，確保水泥塊與物件不會因為座標判定而消失
-    halfWidth = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
-    halfHeight = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
+    // halfWidth = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
+    // halfHeight = CoordinateManager::MAP_LOGIC_SIZE / 2.0f;
 
     // 根據關卡動態調整跳躍性能：所有關卡都使用 30.0f
     g_MarioTotalJumpTime = 30.0f;
@@ -602,7 +625,7 @@ void App::LoadLevel(int level) {
 
         // 第二關道具座標
 
-         // 設定左右遮罩，讓水泥塊能漸漸出現/消失
+        // 設定左右遮罩，讓水泥塊能漸漸出現/消失
         if (m_LeftMask) {
             m_LeftMask->SetVisible(true);
             m_LeftMask->SetPosition(CoordinateManager::LogicToEngine({-55.0f, 460.0f}));
@@ -977,7 +1000,7 @@ void App::LoadLevel(int level) {
         m_Princess->SetPosition(CoordinateManager::LogicToEngine({340.0f, 50.0f}));
     }
 
-    // --- 4. 統一執行m_Mario, m_DonkeyKong座標轉換與套用 ---
+    // --- 4. 統一執行 m_Mario, m_DonkeyKong 座標轉換與套用 ---
     m_Mario->SetPosition(CoordinateManager::LogicToEngine(marioLogicPos));
 
     glm::vec2 dkEngineFoot = CoordinateManager::LogicToEngine(dkLogicPos);
@@ -989,7 +1012,24 @@ void App::LoadLevel(int level) {
     float engineMaxX = CoordinateManager::LogicToEngine({dkMaxLogicX, 0.0f}).x;
     m_DonkeyKong->SetMoveBounds(engineMinX, engineMaxX);
 
+    // 告訴瑪利歐大金剛的邊界，避免重疊穿模
     m_Mario->SetDonkeyKongBounds(m_DonkeyKong->GetPosition(), m_DonkeyKong->GetSize());
+
+    // ========================================================
+    // 【交接點】：判斷現在是「佈置開場動畫」還是「正式開局」
+    // ========================================================
+    if (m_IsOpeningSequence && m_OpeningScene) {
+
+        // 【階段 A：佈置開場動畫】 (遊戲剛啟動時)
+        m_OpeningScene->Start(); // 這裡會把 DK 切為攀爬模式，並強制隱藏瑪利歐與公主
+
+        // 強制隱藏第一關的專屬物件，確保開場動畫畫面只有單純的紅色鷹架
+        if (m_HammerItem) m_HammerItem->SetVisible(false);
+        if (m_HammerItem2) m_HammerItem2->SetVisible(false);
+        if (m_OilBarrel) m_OilBarrel->SetVisible(false);
+        if (m_StaticBarrels) m_StaticBarrels->SetVisible(false);
+
+    }
 }
 
 /**
@@ -1233,6 +1273,9 @@ void App::Update() {
             m_GameOverIcon->SetVisible(false);
             m_CurrentLevel = 1;
             m_HUDText->Init(); // 這會同時重置分數、Bonus 與生命值
+            if (m_OpeningScene) {
+                m_OpeningScene.reset();
+            }
             LoadLevel(m_CurrentLevel);
         }
         m_Renderer.Update();
@@ -1244,6 +1287,48 @@ void App::Update() {
     MarioState marioState = m_Mario->GetState();
     bool isPlaying = (marioState != MarioState::DEAD && marioState != MarioState::WIN);
     float dt = static_cast<float>(Util::Time::GetDeltaTimeMs());
+    // 1. 開場動畫攔截區塊
+    // ==========================================
+    if (m_IsOpeningSequence && m_OpeningScene && !m_OpeningScene->IsFinished()) {
+        // 1. 只更新開場動畫腳本 (處理拋物線座標與背景切換)
+        m_OpeningScene->Update(dt);
+
+        // 2. 依然要更新大金剛，這樣他爬梯子才會有手腳交替的圖片變化
+        if (m_DonkeyKong) {
+            m_DonkeyKong->Update();
+        }
+
+        // 3. 畫出畫面
+        m_Renderer.Update();
+
+        // 保持在開場動畫期間也能按 ESC 退出遊戲
+        if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) || Util::Input::IfExit()) {
+            m_CurrentState = State::END;
+        }
+
+        // 4. ⚠️ 關鍵：提早結束，絕對不能往下執行瑪利歐的跳躍或木桶碰撞！
+        return;
+    }
+
+    // ==========================================
+    // 2. 開場動畫結束瞬間的「狀態重置與第一關初始化」
+    // ==========================================
+    if (m_IsOpeningSequence && m_OpeningScene && m_OpeningScene->IsFinished() && !m_LevelStarted) {
+
+        // 重新載入第一關（這次會走正式開局邏輯）
+        LoadLevel(1);
+
+        // 呼叫我們寫好的 ResetToGame，讓大金剛的動畫與計時器徹底回歸正常丟木桶模式
+        if (m_DonkeyKong) {
+            m_DonkeyKong->ResetToGame();
+        }
+
+        m_LevelStarted = true;
+        m_IsOpeningSequence = false;
+        m_Mario->IDLE();
+    }
+
+    m_Mario->Update();
 
     // --- 【新增】過場畫面處理 ---
     if (m_InTransition) {
