@@ -165,11 +165,11 @@ App (主控制器)
    <tbody>
       <tr>
          <td rowspan="2">112590452 林希芸</td>
-         <td>xx</td>
+         <td>各角色動作邏輯：Mario、Donkey、木桶、firefox</td>
          <td rowspan="2">40%</td>
       </tr>
       <tr>
-         <td>xx</td>
+         <td>圖片素材、開場動畫、重構與統一解決衝突使遊戲依據不同開發環境自動調整</td>
       </tr>
       <tr>
          <td rowspan="3">113AB0018 邱郁晴</td>
