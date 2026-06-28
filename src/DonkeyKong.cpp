@@ -56,6 +56,7 @@ float DonkeyKong::GetRandomChestBeatingDuration() {
 // API：開場結束後，將大金剛狀態重置回遊戲模式
 // =============================================
 void DonkeyKong::ResetToGame() {
+    m_IsLocked = false;
     m_Behavior = Behavior::STATIONARY_LOOKING;
     m_State = State::CHEST_BEATING;
 

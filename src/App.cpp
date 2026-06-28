@@ -403,13 +403,14 @@ void App::LoadLevel(int level) {
             m_OpeningScene = std::make_shared<OpeningScene>(m_DonkeyKong, m_Map, m_Mario, m_Princess);
         }
 
-        // 如果動畫還沒播完，就開啟動畫模式 (True)，並暫停一般遊戲 (False)
-        if (!m_OpeningScene->IsFinished()) {
+        // 如果動畫還沒播完且沒有跳過開場，才進入開場動畫
+        if (!m_SkipOpeningSequence && !m_OpeningScene->IsFinished()) {
             m_IsOpeningSequence = true;
             m_LevelStarted = false;
         } else {
             m_IsOpeningSequence = false;
             m_LevelStarted = true;
+            m_SkipOpeningSequence = false;
         }
     } else {
         // 第 2, 3, 4 關絕對不會有開場動畫
@@ -1240,10 +1241,25 @@ void App::Update() {
 
 #if 1  //sdbg: 按下 N 鍵切換到下一關測試, 按下 R 鍵 reset
     if (Util::Input::IsKeyDown(Util::Keycode::N)) {
-        m_CurrentLevel++;
-        if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
-        LoadLevel(m_CurrentLevel);
-        m_TransitionTimer = 0.0f;
+        if (m_IsOpeningSequence) {
+            // 開場動畫期間按 N：跳過動畫並直接進入第一關
+            m_SkipOpeningSequence = true;
+            m_IsOpeningSequence = false;
+            m_LevelStarted = true;
+            m_OpeningScene.reset();
+            m_CurrentLevel = 1;
+            if (m_DonkeyKong) {
+                m_DonkeyKong->ResetToGame();
+                m_DonkeyKong->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
+            }
+            LoadLevel(m_CurrentLevel);
+            m_TransitionTimer = 0.0f;
+        } else {
+            m_CurrentLevel++;
+            if (m_CurrentLevel == 6) m_CurrentLevel = 1;   // temp: max 5-level
+            LoadLevel(m_CurrentLevel);
+            m_TransitionTimer = 0.0f;
+        }
     }
     else if (Util::Input::IsKeyDown(Util::Keycode::R) && !m_WaitingForRAtVictory) {
         LoadLevel(m_CurrentLevel);
@@ -1339,13 +1355,14 @@ void App::Update() {
     // ==========================================
     if (m_IsOpeningSequence && m_OpeningScene && m_OpeningScene->IsFinished() && !m_LevelStarted) {
 
-        // 重新載入第一關（這次會走正式開局邏輯）
-        LoadLevel(1);
-
         // 呼叫我們寫好的 ResetToGame，讓大金剛的動畫與計時器徹底回歸正常丟木桶模式
         if (m_DonkeyKong) {
             m_DonkeyKong->ResetToGame();
+            m_DonkeyKong->SetScale({m_Mario->marioScale / 1.5f, m_Mario->marioScale / 1.5f});
         }
+
+        // 重新載入第一關（這次會走正式開局邏輯）
+        LoadLevel(1);
 
         m_LevelStarted = true;
         m_IsOpeningSequence = false;
@@ -2327,7 +2344,7 @@ void App::Update() {
                 }
             }
             // 其他關卡的勝利條件：Mario 碰撞公主
-            else {
+            else if (m_CurrentStage != Stage::RIVETS) {
                 const auto marioSize = m_Mario->GetSize();
                 const auto princessPos = m_Princess->GetPosition();
                 const auto princessSize = m_Princess->GetSize();

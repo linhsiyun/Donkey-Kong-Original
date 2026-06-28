@@ -150,6 +150,7 @@ private:
     std::shared_ptr<OpeningScene> m_OpeningScene; // 儲存開場動畫物件
     bool m_IsOpeningSequence = false;             // 標記目前是否正在播開場動畫
     bool m_LevelStarted = false;
+    bool m_SkipOpeningSequence = false;           // 跳過開場動畫並直接進入第一關
 };
 
 #endif
